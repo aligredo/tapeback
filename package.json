@@ -1,0 +1,38 @@
+{
+  "name": "tapeback",
+  "version": "0.1.0",
+  "description": "Automatic session recording and rollback for Claude Code agents",
+  "keywords": [
+    "claude",
+    "claude-code",
+    "ai",
+    "git",
+    "undo",
+    "rollback",
+    "developer-tools"
+  ],
+  "homepage": "https://github.com/aligredo/tapeback",
+  "bugs": {
+    "url": "https://github.com/aligredo/tapeback/issues"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/aligredo/tapeback.git"
+  },
+  "license": "MIT",
+  "bin": {
+    "tapeback": "./bin/tapeback.js"
+  },
+  "files": [
+    "bin/",
+    "plugin/",
+    "src/",
+    ".tapeback.json"
+  ],
+  "scripts": {
+    "test": "node --test test/commands.test.js && bash test/hook.test.sh"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}

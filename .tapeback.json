@@ -1,0 +1,8 @@
+{
+  "messageStyle": "deterministic",
+  "aiTimeoutMs": 5000,
+  "squashBaseRef": "main",
+  "recTag": "[REC]",
+  "ignore": ["*.env", "*.log", ".tapeback.json"],
+  "sessionTag": true
+}
