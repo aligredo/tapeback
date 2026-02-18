@@ -122,37 +122,42 @@ tapeback_main() {
   local agent_message="${CLAUDE_TOOL_INPUT_CONTENT:-}"
   agent_message="${agent_message:0:100}"
 
-  # File names only (for deterministic fallback headline)
-  local file_names
-  file_names="$(git diff --cached --name-only 2>/dev/null | head -5 | tr '\n' ' ' | sed 's/ $//' || echo "files")"
+  # File names (up to 5, space-separated args for generate-headline.js)
+  local file_names_raw
+  file_names_raw="$(git diff --cached --name-only 2>/dev/null | head -5 || true)"
 
-  # ─── Generate headline ───────────────────────────────────────────────────────
+  # Diff stat summary (last line)
+  local diff_stat
+  diff_stat="$(git diff --cached --stat 2>/dev/null | tail -1 || true)"
+
+  # ─── Generate headline via src/generate-headline.js ───────────────────────
 
   local headline=""
+  local script_dir
+  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+  local generator="$script_dir/src/generate-headline.js"
 
-  if [[ "$message_style" == "ai" ]] && command -v claude > /dev/null 2>&1; then
-    local ai_timeout_secs=$(( (ai_timeout_ms + 999) / 1000 ))
-    local diff_stat
-    diff_stat="$(git diff --cached --stat 2>/dev/null | tail -1 || echo "")"
+  if command -v node > /dev/null 2>&1 && [[ -f "$generator" ]]; then
+    # Pass file names as individual arguments (safe — no word splitting issues)
+    local file_args=()
+    while IFS= read -r f; do
+      [[ -n "$f" ]] && file_args+=("$f")
+    done <<< "$file_names_raw"
 
-    local prompt="Generate a single concise conventional commit headline (max 72 chars, no quotes) \
-describing these code changes. Use imperative mood. Examples: 'add JWT middleware', \
-'fix token expiry validation', 'extract auth helper functions'. \
-Changed files: $file_names. Diff summary: $diff_stat. \
-Agent instruction: ${agent_message:0:200}. \
-Output ONLY the headline text, nothing else."
-
-    headline="$(timeout "$ai_timeout_secs" claude -p "$prompt" 2>/dev/null | head -1 | tr -d '"' || true)"
-
-    # Validate: must be non-empty and reasonably short
-    if [[ -z "$headline" ]] || [[ ${#headline} -gt 100 ]]; then
-      headline=""
-    fi
+    headline="$(node "$generator" \
+      "$message_style" \
+      "$ai_timeout_ms" \
+      "$diff_stat" \
+      "${agent_message}" \
+      "${file_args[@]+"${file_args[@]}"}" \
+      2>/dev/null || true)"
   fi
 
-  # Deterministic fallback
+  # Final fallback if node/script unavailable or returned empty
   if [[ -z "$headline" ]]; then
-    headline="edit $file_names"
+    local file_names_inline
+    file_names_inline="$(echo "$file_names_raw" | tr '\n' ' ' | sed 's/ $//')"
+    headline="edit ${file_names_inline:-files}"
   fi
 
   # ─── Build commit message ────────────────────────────────────────────────────

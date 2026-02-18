@@ -1,5 +1,5 @@
 {
-  "messageStyle": "deterministic",
+  "messageStyle": "ai",
   "aiTimeoutMs": 5000,
   "squashBaseRef": "main",
   "recTag": "[REC]",
