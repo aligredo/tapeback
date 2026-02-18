@@ -34,6 +34,9 @@ tapeback_main() {
   repo_root="$(git rev-parse --show-toplevel)"
 
   # ─── Load config ────────────────────────────────────────────────────────────
+  # SECURITY: config values are passed via environment variables into node -e,
+  # never interpolated directly into JS source strings. This prevents code
+  # injection via a maliciously crafted .tapeback.json path or content.
 
   local config_file="$repo_root/.tapeback.json"
   local rec_tag="$DEFAULT_REC_TAG"
@@ -43,54 +46,63 @@ tapeback_main() {
   local ignore_patterns="$DEFAULT_IGNORE"
 
   if [[ -f "$config_file" ]] && command -v node > /dev/null 2>&1; then
-    rec_tag="$(node -e "
-      try {
-        const c = require('$config_file');
-        process.stdout.write(c.recTag || '$DEFAULT_REC_TAG');
-      } catch(e) { process.stdout.write('$DEFAULT_REC_TAG'); }
-    " 2>/dev/null || echo "$DEFAULT_REC_TAG")"
+    rec_tag="$(TAPEBACK_CONFIG="$config_file" TAPEBACK_DEFAULT="$DEFAULT_REC_TAG" \
+      node -e "
+        try {
+          const c = require(process.env.TAPEBACK_CONFIG);
+          process.stdout.write(c.recTag || process.env.TAPEBACK_DEFAULT);
+        } catch(e) { process.stdout.write(process.env.TAPEBACK_DEFAULT); }
+      " 2>/dev/null || echo "$DEFAULT_REC_TAG")"
 
-    message_style="$(node -e "
-      try {
-        const c = require('$config_file');
-        process.stdout.write(c.messageStyle || '$DEFAULT_MESSAGE_STYLE');
-      } catch(e) { process.stdout.write('$DEFAULT_MESSAGE_STYLE'); }
-    " 2>/dev/null || echo "$DEFAULT_MESSAGE_STYLE")"
+    message_style="$(TAPEBACK_CONFIG="$config_file" TAPEBACK_DEFAULT="$DEFAULT_MESSAGE_STYLE" \
+      node -e "
+        try {
+          const c = require(process.env.TAPEBACK_CONFIG);
+          process.stdout.write(c.messageStyle || process.env.TAPEBACK_DEFAULT);
+        } catch(e) { process.stdout.write(process.env.TAPEBACK_DEFAULT); }
+      " 2>/dev/null || echo "$DEFAULT_MESSAGE_STYLE")"
 
-    ai_timeout_ms="$(node -e "
-      try {
-        const c = require('$config_file');
-        process.stdout.write(String(c.aiTimeoutMs || $DEFAULT_AI_TIMEOUT_MS));
-      } catch(e) { process.stdout.write('$DEFAULT_AI_TIMEOUT_MS'); }
-    " 2>/dev/null || echo "$DEFAULT_AI_TIMEOUT_MS")"
+    ai_timeout_ms="$(TAPEBACK_CONFIG="$config_file" TAPEBACK_DEFAULT="$DEFAULT_AI_TIMEOUT_MS" \
+      node -e "
+        try {
+          const c = require(process.env.TAPEBACK_CONFIG);
+          process.stdout.write(String(c.aiTimeoutMs || process.env.TAPEBACK_DEFAULT));
+        } catch(e) { process.stdout.write(process.env.TAPEBACK_DEFAULT); }
+      " 2>/dev/null || echo "$DEFAULT_AI_TIMEOUT_MS")"
 
-    session_tag="$(node -e "
-      try {
-        const c = require('$config_file');
-        process.stdout.write(c.sessionTag === false ? 'false' : 'true');
-      } catch(e) { process.stdout.write('true'); }
-    " 2>/dev/null || echo "true")"
+    session_tag="$(TAPEBACK_CONFIG="$config_file" \
+      node -e "
+        try {
+          const c = require(process.env.TAPEBACK_CONFIG);
+          process.stdout.write(c.sessionTag === false ? 'false' : 'true');
+        } catch(e) { process.stdout.write('true'); }
+      " 2>/dev/null || echo "true")"
 
-    ignore_patterns="$(node -e "
-      try {
-        const c = require('$config_file');
-        process.stdout.write(JSON.stringify(c.ignore || []));
-      } catch(e) { process.stdout.write('[]'); }
-    " 2>/dev/null || echo "[]")"
+    ignore_patterns="$(TAPEBACK_CONFIG="$config_file" \
+      node -e "
+        try {
+          const c = require(process.env.TAPEBACK_CONFIG);
+          process.stdout.write(JSON.stringify(c.ignore || []));
+        } catch(e) { process.stdout.write('[]'); }
+      " 2>/dev/null || echo "[]")"
   fi
 
   # ─── Stage changes (respecting ignore patterns) ─────────────────────────────
+  # SECURITY: ignore_patterns JSON is passed via stdin, not interpolated into JS.
 
-  # Build excludes for git add
   local excludes=()
   if command -v node > /dev/null 2>&1; then
     while IFS= read -r pattern; do
       [[ -n "$pattern" ]] && excludes+=(":!$pattern")
-    done < <(node -e "
-      try {
-        const p = JSON.parse('$ignore_patterns');
-        p.forEach(x => console.log(x));
-      } catch(e) {}
+    done < <(printf '%s' "$ignore_patterns" | node -e "
+      const chunks = [];
+      process.stdin.on('data', d => chunks.push(d));
+      process.stdin.on('end', () => {
+        try {
+          const p = JSON.parse(chunks.join(''));
+          if (Array.isArray(p)) p.forEach(x => process.stdout.write(x + '\n'));
+        } catch(e) {}
+      });
     " 2>/dev/null)
   fi
 
@@ -108,21 +120,27 @@ tapeback_main() {
   fi
 
   # ─── Gather commit metadata ──────────────────────────────────────────────────
+  # SECURITY: CLAUDE_TOOL_INPUT_CONTENT and CLAUDE_SESSION_ID are stripped of
+  # control characters before use to prevent commit message corruption.
 
   local timestamp
   timestamp="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 
-  local session_id="${CLAUDE_SESSION_ID:-unknown}"
+  # Strip non-printable control characters (allow regular whitespace)
+  local session_id
+  session_id="$(printf '%s' "${CLAUDE_SESSION_ID:-unknown}" \
+    | tr -cd '[:print:]' | head -c 128)"
+  [[ -z "$session_id" ]] && session_id="unknown"
+
+  local agent_message
+  agent_message="$(printf '%s' "${CLAUDE_TOOL_INPUT_CONTENT:-}" \
+    | tr -cd '[:print:] \t' | head -c 100)"
 
   # Changed files with stat
   local changed_files
   changed_files="$(git diff --cached --stat 2>/dev/null | head -20 || echo "  (unable to stat)")"
 
-  # First 100 chars of the agent message that triggered this
-  local agent_message="${CLAUDE_TOOL_INPUT_CONTENT:-}"
-  agent_message="${agent_message:0:100}"
-
-  # File names (up to 5, space-separated args for generate-headline.js)
+  # File names (up to 5, for generate-headline.js)
   local file_names_raw
   file_names_raw="$(git diff --cached --name-only 2>/dev/null | head -5 || true)"
 
@@ -148,7 +166,7 @@ tapeback_main() {
       "$message_style" \
       "$ai_timeout_ms" \
       "$diff_stat" \
-      "${agent_message}" \
+      "$agent_message" \
       "${file_args[@]+"${file_args[@]}"}" \
       2>/dev/null || true)"
   fi
@@ -156,7 +174,7 @@ tapeback_main() {
   # Final fallback if node/script unavailable or returned empty
   if [[ -z "$headline" ]]; then
     local file_names_inline
-    file_names_inline="$(echo "$file_names_raw" | tr '\n' ' ' | sed 's/ $//')"
+    file_names_inline="$(printf '%s' "$file_names_raw" | tr '\n' ' ' | sed 's/ $//')"
     headline="edit ${file_names_inline:-files}"
   fi
 
