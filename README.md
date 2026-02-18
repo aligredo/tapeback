@@ -1,0 +1,170 @@
+# tapeback 🎞️
+
+> *Like rewinding a tape — tapeback automatically records every Claude Code agent action that changes your codebase, so you can rewind to any moment in your session.*
+
+---
+
+## The problem
+
+Claude Code agents are powerful but imperfect. A single bad message can silently overwrite hours of work across multiple files — with no native undo beyond manual `git` gymnastics.
+
+**tapeback is the rewind button.**
+
+Every time Claude edits a file, tapeback automatically commits the codebase state with a `[REC]` tag. When something goes wrong, one command puts you back where you were.
+
+---
+
+## Install
+
+```bash
+# Add to your current project
+npx tapeback init
+
+# Or install globally for all projects
+npx tapeback init --global
+```
+
+That's it. No global install required. tapeback wires itself into Claude Code's hook system and starts recording immediately.
+
+---
+
+## Commands
+
+### `/rollback` — rewind to any recording
+
+```bash
+/rollback              # undo the last recording
+/rollback 3            # undo the last 3 recordings
+/rollback --to <hash>  # rewind to a specific commit
+/rollback --to "14:30" # rewind to nearest recording before a time
+```
+
+tapeback will show you exactly what will change and ask for confirmation before touching anything. If you have uncommitted work, it'll ask whether to stash or abandon it first.
+
+### `/squash` — clean history before a PR
+
+```bash
+/squash
+```
+
+Squashes all `[REC]` recordings since your branch diverged from `main` into a single conventional commit. Shows a summary of everything Claude changed, prompts for your final commit message, and creates a backup tag before touching anything.
+
+---
+
+## How it works
+
+tapeback uses Claude Code's `PostToolUse` hook to fire after every `Write`, `Edit`, or `MultiEdit` tool call.
+
+```
+Claude edits file(s)
+      ↓
+PostToolUse fires
+      ↓
+Any tracked files changed? ──No──→ exit (silent)
+      ↓ Yes
+git add -A
+      ↓
+Generate headline (claude -p with 5s timeout → deterministic fallback)
+      ↓
+git commit  "chore(tapeback): <headline> [REC]"
+      ↓
+exit 0  ← always, never blocks Claude
+```
+
+Each recording looks like this in `git log`:
+
+```
+chore(tapeback): add JWT middleware [REC]
+
+Agent message: "add JWT authentication to the API"
+Changed files:
+  src/auth/jwt.py  (+42 -3)
+  tests/test_auth.py  (+18 -0)
+
+Timestamp: 2026-02-18T14:32:07Z
+Session: abc123
+```
+
+---
+
+## Configuration
+
+tapeback reads `.tapeback.json` from your project root:
+
+```json
+{
+  "messageStyle": "ai",
+  "aiTimeoutMs": 5000,
+  "squashBaseRef": "main",
+  "recTag": "[REC]",
+  "ignore": ["*.env", "*.log", ".tapeback.json"],
+  "sessionTag": true
+}
+```
+
+| Option | Default | Description |
+|---|---|---|
+| `messageStyle` | `"ai"` | `"ai"` uses `claude -p` to generate a headline; `"deterministic"` uses filenames |
+| `aiTimeoutMs` | `5000` | Hard timeout (ms) before falling back to deterministic headline |
+| `squashBaseRef` | `"main"` | Branch that `/squash` measures divergence from |
+| `recTag` | `"[REC]"` | Identifier tag in every recording's commit subject |
+| `ignore` | `["*.env","*.log"]` | Glob patterns to never stage or commit |
+| `sessionTag` | `true` | Include Claude session ID in commit body |
+
+---
+
+## Requirements
+
+- **macOS / Linux** (POSIX shell required — Windows not supported in v1)
+- **git** ≥ 2.23
+- **Node.js** ≥ 18
+- **Claude Code** with hooks support
+
+---
+
+## Safety guarantees
+
+- The hook **always exits 0** — it can never block or crash your Claude session
+- The hook has a **5-second hard timeout** on AI message generation
+- `/squash` **always creates a backup tag** before any git mutation — your session is always recoverable
+- `/rollback` **always previews** what will change and asks for confirmation
+
+---
+
+## Repository structure
+
+```
+tapeback/
+├── .claude-plugin                   # Plugin manifest for Claude Code registry
+├── package.json
+├── bin/
+│   └── tapeback.js                 # CLI entrypoint (npx tapeback init)
+├── plugin/
+│   ├── hooks/
+│   │   └── post-tool-use.sh        # Core auto-record hook
+│   ├── commands/
+│   │   ├── rollback.md             # /rollback slash command
+│   │   └── squash.md               # /squash slash command
+│   └── settings.json               # Hook wiring for Claude Code
+├── src/
+│   ├── commit-message.js           # Headline generation module
+│   └── generate-headline.js        # CLI wrapper for the hook
+├── test/
+│   ├── hook.test.sh
+│   ├── rollback.test.sh
+│   ├── squash.test.sh
+│   └── commands.test.js
+└── .tapeback.json                  # Default config (copied on init)
+```
+
+---
+
+## Contributing
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md).
+
+---
+
+## License
+
+MIT

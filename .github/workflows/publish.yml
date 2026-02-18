@@ -1,0 +1,40 @@
+name: Publish to npm
+
+on:
+  push:
+    tags:
+      - "v*"
+
+jobs:
+  publish:
+    name: Publish
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write   # required for npm provenance
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          registry-url: "https://registry.npmjs.org"
+
+      - name: Configure git identity (required for tests)
+        run: |
+          git config --global user.email "ci@tapeback.sh"
+          git config --global user.name "tapeback CI"
+
+      - name: Run full test suite
+        run: |
+          node --test test/commands.test.js
+          bash test/hook.test.sh
+          bash test/rollback.test.sh
+          bash test/squash.test.sh
+
+      - name: Publish to npm
+        run: npm publish --provenance --access public
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
