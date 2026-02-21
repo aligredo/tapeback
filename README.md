@@ -30,13 +30,13 @@ That's it. No global install required. tapeback wires itself into Claude Code's 
 
 ## Commands
 
-### `/rollback` — rewind to any recording
+### `/tapeback` — rewind to any recording
 
 ```bash
-/rollback              # undo the last recording
-/rollback 3            # undo the last 3 recordings
-/rollback --to <hash>  # rewind to a specific commit
-/rollback --to "14:30" # rewind to nearest recording before a time
+/tapeback              # undo the last recording
+/tapeback 3            # undo the last 3 recordings
+/tapeback --to <hash>  # rewind to a specific commit
+/tapeback --to "14:30" # rewind to nearest recording before a time
 ```
 
 tapeback will show you exactly what will change and ask for confirmation before touching anything. If you have uncommitted work, it'll ask whether to stash or abandon it first.
@@ -127,7 +127,7 @@ tapeback reads `.tapeback.json` from your project root:
 - The hook **always exits 0** — it can never block or crash your Claude session
 - The hook has a **5-second hard timeout** on AI message generation
 - `/squash` **always creates a backup tag** before any git mutation — your session is always recoverable
-- `/rollback` **always previews** what will change and asks for confirmation
+- `/tapeback` **always previews** what will change and asks for confirmation
 
 ---
 
@@ -143,7 +143,7 @@ tapeback/
 │   ├── hooks/
 │   │   └── post-tool-use.sh        # Core auto-record hook
 │   ├── commands/
-│   │   ├── rollback.md             # /rollback slash command
+│   │   ├── tapeback.md             # /tapeback slash command
 │   │   └── squash.md               # /squash slash command
 │   └── settings.json               # Hook wiring for Claude Code
 ├── src/
@@ -151,7 +151,7 @@ tapeback/
 │   └── generate-headline.js        # CLI wrapper for the hook
 ├── test/
 │   ├── hook.test.sh
-│   ├── rollback.test.sh
+│   ├── tapeback.test.sh
 │   ├── squash.test.sh
 │   └── commands.test.js
 └── .tapeback.json                  # Default config (copied on init)

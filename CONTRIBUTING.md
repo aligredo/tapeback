@@ -25,7 +25,7 @@ Or run individual suites:
 
 ```bash
 bash test/hook.test.sh          # Hook integration tests (13)
-bash test/rollback.test.sh      # /rollback integration tests (19)
+bash test/tapeback.test.sh      # /tapeback integration tests (19)
 bash test/squash.test.sh        # /squash integration tests (17)
 node --test test/commands.test.js  # JS unit tests (17)
 ```
@@ -39,7 +39,7 @@ All 66 tests must pass before opening a PR.
 | Path | What it is |
 |---|---|
 | `plugin/hooks/post-tool-use.sh` | The core hook — must always exit 0 |
-| `plugin/commands/rollback.md` | `/rollback` Claude prompt |
+| `plugin/commands/tapeback.md` | `/tapeback` Claude prompt |
 | `plugin/commands/squash.md` | `/squash` Claude prompt |
 | `src/commit-message.js` | Headline generation module |
 | `src/generate-headline.js` | CLI wrapper for the hook |

@@ -1,7 +1,7 @@
 {
   "name": "tapeback",
   "version": "1.0.0",
-  "description": "Automatic session recording and rollback for Claude Code agents. Every edit is committed with a [REC] tag — rewind to any moment with /rollback, clean up before a PR with /squash.",
+  "description": "Automatic session recording for Claude Code agents. Every edit is committed with a [REC] tag — rewind to any moment with /tapeback, clean up before a PR with /squash.",
   "author": "aligredo",
   "homepage": "https://github.com/aligredo/tapeback",
   "license": "MIT",
@@ -13,9 +13,9 @@
   },
   "commands": [
     {
-      "name": "rollback",
+      "name": "tapeback",
       "description": "Roll back to any previous tapeback recording. Supports count, hash, and timestamp targeting.",
-      "file": "commands/rollback.md"
+      "file": "commands/tapeback.md"
     },
     {
       "name": "squash",

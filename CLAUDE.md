@@ -7,7 +7,7 @@ This file tells Claude how to work in the `tapeback` repository.
 ## What this repo is
 
 `tapeback` is a Claude Code plugin that automatically records every agent edit
-as a `[REC]`-tagged git commit, then provides `/rollback` and `/squash`
+as a `[REC]`-tagged git commit, then provides `/tapeback` and `/squash`
 slash commands for rewinding or cleaning up the history.
 
 ---
@@ -16,14 +16,14 @@ slash commands for rewinding or cleaning up the history.
 
 ```
 plugin/hooks/post-tool-use.sh   Core bash hook — fires on Write/Edit/MultiEdit
-plugin/commands/rollback.md     /rollback slash command prompt
+plugin/commands/tapeback.md     /tapeback slash command prompt
 plugin/commands/squash.md       /squash slash command prompt
 plugin/settings.json            Hook wiring for Claude Code
 src/commit-message.js           AI headline generation module
 src/generate-headline.js        CLI wrapper called by the hook
 bin/tapeback.js                 npx tapeback init CLI
 test/hook.test.sh               Hook integration tests (bash, real git sandboxes)
-test/rollback.test.sh           /rollback integration tests (bash)
+test/tapeback.test.sh           /tapeback integration tests (bash)
 test/squash.test.sh             /squash integration tests (bash)
 test/commands.test.js           commit-message.js unit tests (node --test)
 .tapeback.json                  Default config template (copied on init)
@@ -39,7 +39,7 @@ npm test
 
 # Individual suites
 bash test/hook.test.sh
-bash test/rollback.test.sh
+bash test/tapeback.test.sh
 bash test/squash.test.sh
 node --test test/commands.test.js
 ```

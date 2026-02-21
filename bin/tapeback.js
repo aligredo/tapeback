@@ -127,8 +127,8 @@ function cmdInit(args) {
   log('  tapeback is ready. Every Claude Code edit will now be recorded.');
   log('');
   log('  Commands available inside Claude Code:');
-  log('    /rollback        — rewind the last recording');
-  log('    /rollback 3      — rewind the last 3 recordings');
+  log('    /tapeback        — rewind the last recording');
+  log('    /tapeback 3      — rewind the last 3 recordings');
   log('    /squash          — squash all recordings into one clean commit');
   log('');
   log('  Configuration: .tapeback.json');

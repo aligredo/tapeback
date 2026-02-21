@@ -1,23 +1,23 @@
-# /rollback
+# /tapeback
 
 Roll back the codebase to a previous tapeback recording.
 
 ## Usage
 
 ```
-/rollback                        # roll back 1 recording (default)
-/rollback 3                      # roll back last N recordings
-/rollback --to <hash>            # roll back to a specific commit hash
-/rollback --to <timestamp>       # roll back to nearest recording at/before a time
-                                 # e.g. /rollback --to "14:30"
-                                 #      /rollback --to "2026-02-18T14:30"
+/tapeback                        # roll back 1 recording (default)
+/tapeback 3                      # roll back last N recordings
+/tapeback --to <hash>            # roll back to a specific commit hash
+/tapeback --to <timestamp>       # roll back to nearest recording at/before a time
+                                 # e.g. /tapeback --to "14:30"
+                                 #      /tapeback --to "2026-02-18T14:30"
 ```
 
 ---
 
 ## Instructions
 
-When the user runs `/rollback`, follow these steps precisely.
+When the user runs `/tapeback`, follow these steps precisely.
 
 ### Step 1 — Parse the argument
 
@@ -33,7 +33,7 @@ Run:
 git log --oneline --grep='\[REC\]'
 ```
 
-**Count-based (`/rollback` or `/rollback N`):**
+**Count-based (`/tapeback` or `/tapeback N`):**
 Find the Nth `[REC]` commit from the top of the log. That commit's hash is the target.
 If fewer than N recordings exist, tell the user how many exist and ask them to confirm or cancel.
 
@@ -70,11 +70,11 @@ If there are uncommitted changes, show them and ask:
 What should I do with them before rolling back?
   [1] Stash them (recoverable later with git stash pop)
   [2] Abandon them (hard reset, irreversible)
-  [3] Cancel rollback
+  [3] Cancel tapeback
 ```
 
 Wait for the user's choice before continuing.
-- Choice 1 → `git stash push -m "tapeback: pre-rollback stash <timestamp>"`
+- Choice 1 → `git stash push -m "tapeback: pre-tapeback stash <timestamp>"`
 - Choice 2 → proceed (the hard reset in step 6 will discard them)
 - Choice 3 → stop, tell the user nothing was changed
 
@@ -101,7 +101,7 @@ Show a concise summary:
   Timestamp: <timestamp>
   <N> recording(s) undone.
 
-Tip: run /rollback again to go further back, or git stash pop to restore stashed changes.
+Tip: run /tapeback again to go further back, or git stash pop to restore stashed changes.
 ```
 
 ---

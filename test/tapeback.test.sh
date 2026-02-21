@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# tapeback — /rollback command integration tests
+# tapeback — /tapeback command integration tests
 #
-# These tests verify the git primitives that the /rollback prompt instructs
+# These tests verify the git primitives that the /tapeback prompt instructs
 # Claude to execute. Each test builds a real temporary git repo seeded with
 # [REC] commits, then asserts the correct outcomes.
 
@@ -91,7 +91,7 @@ rec_count() {
 # ─── Tests ────────────────────────────────────────────────────────────────────
 
 echo ""
-echo "tapeback /rollback tests"
+echo "tapeback /tapeback tests"
 echo "────────────────────────"
 
 # ── 1. Find [REC] commits ──────────────────────────────────────────────────────
@@ -131,10 +131,10 @@ content="$(cat "$T/src.txt")"
 assert_eq "$content" "v1" "hard reset restores file to state at target recording"
 
 remaining=$(rec_count "$T")
-assert_eq "$remaining" "1" "only 1 [REC] commit remains after rollback"
+assert_eq "$remaining" "1" "only 1 [REC] commit remains after tapeback"
 cleanup "$T"
 
-# ── 3. Rollback N=1 (default): removes only the last recording ────────────────
+# ── 3. Tapeback N=1 (default): removes only the last recording ────────────────
 
 T=$(make_repo)
 plain_commit "$T" "chore: initial"
@@ -146,11 +146,11 @@ target=$(nth_rec_hash "$T" 2)   # N=1 means rewind to 2nd most recent (one befor
 git -C "$T" reset --hard "$target" > /dev/null
 
 remaining=$(rec_count "$T")
-assert_eq "$remaining" "2" "rollback N=1 leaves 2 recordings"
+assert_eq "$remaining" "2" "tapeback N=1 leaves 2 recordings"
 assert_contains "$(git -C "$T" log -1 --pretty=%s)" "recording two" "HEAD is now recording two"
 cleanup "$T"
 
-# ── 4. Rollback N=3: removes last 3 recordings ────────────────────────────────
+# ── 4. Tapeback N=3: removes last 3 recordings ────────────────────────────────
 
 T=$(make_repo)
 plain_commit "$T" "chore: initial"
@@ -164,11 +164,11 @@ target=$(nth_rec_hash "$T" 4)
 git -C "$T" reset --hard "$target" > /dev/null
 
 remaining=$(rec_count "$T")
-assert_eq "$remaining" "1" "rollback N=3 leaves 1 recording"
+assert_eq "$remaining" "1" "tapeback N=3 leaves 1 recording"
 assert_contains "$(git -C "$T" log -1 --pretty=%s)" "rec one" "HEAD is now rec one"
 cleanup "$T"
 
-# ── 5. Hash-based rollback targets correct commit ─────────────────────────────
+# ── 5. Hash-based tapeback targets correct commit ─────────────────────────────
 
 T=$(make_repo)
 plain_commit "$T" "chore: initial"
@@ -179,10 +179,10 @@ rec_commit "$T" "gamma"
 alpha_hash=$(nth_rec_hash "$T" 3)   # oldest = alpha
 git -C "$T" reset --hard "$alpha_hash" > /dev/null
 
-assert_contains "$(git -C "$T" log -1 --pretty=%s)" "alpha" "hash-based rollback lands on correct commit"
+assert_contains "$(git -C "$T" log -1 --pretty=%s)" "alpha" "hash-based tapeback lands on correct commit"
 cleanup "$T"
 
-# ── 6. git stash preserves uncommitted changes before rollback ────────────────
+# ── 6. git stash preserves uncommitted changes before tapeback ────────────────
 
 T=$(make_repo)
 plain_commit "$T" "chore: initial"
@@ -194,7 +194,7 @@ echo "dirty" > "$T/dirty.txt"
 git -C "$T" add "$T/dirty.txt"
 
 # Stash (as the prompt instructs for choice 1)
-git -C "$T" stash push -q -m "tapeback: pre-rollback stash"
+git -C "$T" stash push -q -m "tapeback: pre-tapeback stash"
 
 assert_file_not_exists "$T/dirty.txt" "stash removes staged file from working tree"
 
@@ -205,7 +205,7 @@ git -C "$T" reset --hard "$target" > /dev/null
 # Restore stash
 git -C "$T" stash pop -q
 
-assert_file_exists "$T/dirty.txt" "git stash pop restores the file after rollback"
+assert_file_exists "$T/dirty.txt" "git stash pop restores the file after tapeback"
 assert_eq "$(cat "$T/dirty.txt")" "dirty" "stash pop restores correct file content"
 cleanup "$T"
 
