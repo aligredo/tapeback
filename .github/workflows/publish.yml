@@ -31,7 +31,7 @@ jobs:
         run: |
           node --test test/commands.test.js
           bash test/hook.test.sh
-          bash test/rollback.test.sh
+          bash test/tapeback.test.sh
           bash test/squash.test.sh
 
       - name: Publish to npm

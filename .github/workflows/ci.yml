@@ -35,8 +35,8 @@ jobs:
       - name: Run hook integration tests
         run: bash test/hook.test.sh
 
-      - name: Run rollback integration tests
-        run: bash test/rollback.test.sh
+      - name: Run tapeback integration tests
+        run: bash test/tapeback.test.sh
 
       - name: Run squash integration tests
         run: bash test/squash.test.sh
