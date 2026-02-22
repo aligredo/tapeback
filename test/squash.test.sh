@@ -3,7 +3,7 @@
 #
 # Verifies the git primitives that /squash instructs Claude to execute:
 # base-branch divergence detection, [REC] commit enumeration, backup tag
-# creation, and git reset --soft + git commit squash execution.
+# creation, and git rebase -i selective squash execution.
 
 set -euo pipefail
 
@@ -80,6 +80,37 @@ assert_not_contains() {
 
 cleanup() { rm -rf "$1"; }
 
+# Runs the selective squash used by /squash: only [REC] commits are squashed,
+# non-[REC] commits survive untouched. Uses git rebase -i with a custom
+# sequence editor that marks [REC] commits as reword/fixup and leaves others.
+run_selective_squash() {
+  local repo="$1" msg="$2"
+  local seq_editor msg_file
+  seq_editor="$(mktemp /tmp/tapeback_seq_XXXXXX.js)"
+  msg_file="$(mktemp /tmp/tapeback_msg_XXXXXX.txt)"
+  printf '%s\n' "$msg" > "$msg_file"
+  cat > "$seq_editor" << 'JSEOF'
+const fs = require('fs');
+const { execSync } = require('child_process');
+const f = process.argv[2];
+const lines = fs.readFileSync(f, 'utf8').split('\n');
+let firstRec = true;
+const out = lines.map(l => {
+  const m = l.match(/^pick\s+([0-9a-f]+)/);
+  if (!m) return l;
+  const s = execSync('git log -1 --format=%s ' + m[1]).toString().trim();
+  if (!s.includes('[REC]')) return l;
+  if (firstRec) { firstRec = false; return l.replace(/^pick/, 'reword'); }
+  return l.replace(/^pick/, 'fixup');
+});
+fs.writeFileSync(f, out.join('\n'));
+JSEOF
+  GIT_SEQUENCE_EDITOR="node $seq_editor" \
+  GIT_EDITOR="cp $msg_file" \
+  git -C "$repo" rebase -i test-base 2>/dev/null
+  rm -f "$seq_editor" "$msg_file"
+}
+
 # ─── Tests ────────────────────────────────────────────────────────────────────
 
 echo ""
@@ -127,22 +158,18 @@ tags="$(git -C "$T" tag)"
 assert_contains "$tags" "tapeback/pre-squash-" "backup tag created with correct prefix"
 cleanup "$T"
 
-# ── 4. git reset --soft + commit squashes all [REC] commits ──────────────────
+# ── 4. selective squash collapses only [REC] commits into one ─────────────────
 
 T=$(make_repo)
 rec_commit "$T" "add login" "login.txt"
 rec_commit "$T" "add signup" "signup.txt"
 rec_commit "$T" "add logout" "logout.txt"
 
-before_hash="$(git -C "$T" rev-parse HEAD)"
-oldest=$(oldest_rec_hash "$T")
+run_selective_squash "$T" "feat(auth): add login, signup, and logout"
 
-git -C "$T" reset --soft "${oldest}^"
-git -C "$T" commit -q --no-verify -m "feat(auth): add login, signup, and logout"
-
-# Now HEAD should be a single commit
+# All three [REC] commits should now be a single commit
 commit_count_since_initial="$(git -C "$T" rev-list --count HEAD ^"$(git -C "$T" rev-list --max-parents=0 HEAD)")"
-assert_eq "$commit_count_since_initial" "1" "squash produces exactly 1 commit since initial"
+assert_eq "$commit_count_since_initial" "1" "selective squash produces exactly 1 commit since initial"
 
 msg="$(git -C "$T" log -1 --pretty=%s)"
 assert_eq "$msg" "feat(auth): add login, signup, and logout" "squashed commit has user-provided message"
@@ -172,22 +199,24 @@ count=$(rec_count_since_base "$T")
 assert_eq "$count" "1" "reports 1 when only one [REC] commit exists"
 cleanup "$T"
 
-# ── 7. Squash preserves non-REC commits between recordings ───────────────────
+# ── 7. Non-REC commits survive the selective squash unchanged ─────────────────
 
 T=$(make_repo)
 rec_commit   "$T" "recording one" "a.txt"
 plain_commit "$T" "manual tweak"
 rec_commit   "$T" "recording two" "b.txt"
 
-oldest=$(oldest_rec_hash "$T")
-git -C "$T" reset --soft "${oldest}^"
-git -C "$T" commit -q --no-verify -m "feat: combined work"
+run_selective_squash "$T" "feat: combined recordings"
 
-msg="$(git -C "$T" log -1 --pretty=%s)"
-assert_eq "$msg" "feat: combined work" "non-REC commits between recordings are included in squash"
+# History should now have 2 commits since base: 1 squashed [REC] + 1 plain
+total_after="$(git -C "$T" log --oneline HEAD ^test-base | wc -l | tr -d ' ')"
+assert_eq "$total_after" "2" "2 commits remain after selective squash (1 squashed REC + 1 plain)"
 
-assert_eq "$([ -f "$T/a.txt" ] && echo yes || echo no)" "yes" "a.txt preserved after squash with interleaved commits"
-assert_eq "$([ -f "$T/b.txt" ] && echo yes || echo no)" "yes" "b.txt preserved after squash with interleaved commits"
+log="$(git -C "$T" log --oneline HEAD ^test-base)"
+assert_contains "$log" "manual tweak" "non-REC commit (manual tweak) survives the squash"
+
+assert_eq "$([ -f "$T/a.txt" ] && echo yes || echo no)" "yes" "a.txt preserved after selective squash"
+assert_eq "$([ -f "$T/b.txt" ] && echo yes || echo no)" "yes" "b.txt preserved after selective squash"
 cleanup "$T"
 
 # ── 8. Backup tag allows full recovery after squash ───────────────────────────
@@ -199,9 +228,7 @@ rec_commit "$T" "step two" "step2.txt"
 pre_squash_hash="$(git -C "$T" rev-parse HEAD)"
 git -C "$T" tag "tapeback/pre-squash-recovery-test"
 
-oldest=$(oldest_rec_hash "$T")
-git -C "$T" reset --soft "${oldest}^"
-git -C "$T" commit -q --no-verify -m "feat: squashed"
+run_selective_squash "$T" "feat: squashed"
 
 # Verify squash happened
 squashed_hash="$(git -C "$T" rev-parse HEAD)"

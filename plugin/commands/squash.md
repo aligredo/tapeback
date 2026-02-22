@@ -1,6 +1,6 @@
 # /squash
 
-Squash all tapeback `[REC]` recordings since the branch diverged from the base branch into a single clean conventional commit.
+Squash all tapeback `[REC]` recordings into a single clean conventional commit, leaving all other commits untouched.
 
 ---
 
@@ -99,24 +99,54 @@ Proceed anyway? [y/N]
 
 Stop if the user says anything other than `y` or `yes`.
 
-### Step 7 — Execute the squash
+### Step 7 — Execute the selective squash
 
-Find the oldest `[REC]` commit's parent (the commit just before the first recording):
-```bash
-git log --oneline HEAD ^<BASE_REF> --grep='\[REC\]' | tail -1 | awk '{print $1}'
-```
-Call this `OLDEST_REC`.
+Only `[REC]` commits are squashed. All non-`[REC]` commits survive untouched in the history.
 
-Run an interactive-style squash using `git reset` + `git commit`:
+**a. Write the final commit message to a temp file:**
 ```bash
-git reset --soft <OLDEST_REC>^
-git commit --no-verify -m "<user-provided message>"
+printf '%s\n' "<user-provided message>" > /tmp/tapeback_squash_msg.txt
 ```
 
-This collapses all `[REC]` commits (and any non-REC commits between them on the branch) into a single commit with the user's message.
+**b. Write the sequence editor script to a temp file:**
+```bash
+cat > /tmp/tapeback_seq_editor.js << 'EOF'
+const fs = require('fs');
+const path = require('path');
+const { execSync } = require('child_process');
+const f = process.argv[2];
+const repoRoot = execSync('git rev-parse --show-toplevel').toString().trim();
+let recTag = '[REC]';
+try { recTag = JSON.parse(fs.readFileSync(path.join(repoRoot, '.tapeback.json'), 'utf8')).recTag || '[REC]'; } catch {}
+const lines = fs.readFileSync(f, 'utf8').split('\n');
+let firstRec = true;
+const out = lines.map(l => {
+  const m = l.match(/^pick\s+([0-9a-f]+)/);
+  if (!m) return l;
+  const subject = execSync('git log -1 --format=%s ' + m[1]).toString().trim();
+  if (!subject.includes(recTag)) return l;
+  if (firstRec) { firstRec = false; return l.replace(/^pick/, 'reword'); }
+  return l.replace(/^pick/, 'fixup');
+});
+fs.writeFileSync(f, out.join('\n'));
+EOF
+```
 
-> Note: If `OLDEST_REC^` does not exist (the oldest recording is the very first commit in the repo), use `--root` instead:
-> `git update-ref -d HEAD` then `git commit --no-verify -m "<message>"`
+**c. Run the interactive rebase:**
+```bash
+GIT_SEQUENCE_EDITOR="node /tmp/tapeback_seq_editor.js" \
+GIT_EDITOR="cp /tmp/tapeback_squash_msg.txt" \
+git rebase -i <BASE_REF>
+```
+
+The sequence editor marks the oldest `[REC]` commit as `reword` (so git applies the user's message to it) and all subsequent `[REC]` commits as `fixup` (squashed into it, messages discarded). Non-`[REC]` commits remain as `pick` and are replayed unchanged.
+
+**d. Clean up:**
+```bash
+rm -f /tmp/tapeback_squash_msg.txt /tmp/tapeback_seq_editor.js
+```
+
+> If `git rebase` reports a conflict, stop immediately. Tell the user to resolve the conflict manually and run `git rebase --continue`, then remind them the backup tag is available for a full reset if needed.
 
 ### Step 8 — Report
 
@@ -136,6 +166,7 @@ Recovery: git reset --hard tapeback/pre-squash-<timestamp>
 
 - **Always** create the backup tag (Step 4) before any git mutation.
 - Never squash commits from other branches. Only squash commits reachable from `HEAD` but not from `BASE_REF`.
+- Never squash non-`[REC]` commits. Only commits whose subject contains the `recTag` string are squash targets.
 - Only squash when there are ≥ 2 `[REC]` commits. For 0 or 1, stop early with a clear message.
-- If `git reset --soft` or `git commit` fails, tell the user the exact error and remind them the backup tag exists for recovery.
+- If `git rebase` fails, tell the user the exact error and remind them the backup tag exists for recovery.
 - Do not push. Squash is a local operation only.
