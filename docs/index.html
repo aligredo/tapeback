@@ -1,0 +1,593 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>tapeback — the rewind button for Claude Code</title>
+<meta name="description" content="tapeback automatically records every Claude Code edit as a [REC] git commit. Rewind to any moment, squash recordings before a PR, or visualise your session graph.">
+<meta property="og:title" content="tapeback — the rewind button for Claude Code">
+<meta property="og:description" content="Every Claude edit is recorded. Rewind to any moment with /tapeback, clean up before a PR with /squash, visualise with /reel.">
+<meta property="og:type" content="website">
+<meta name="theme-color" content="#0d1117">
+
+<style>
+/* ─── Reset & base ─────────────────────────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg:       #0d1117;
+  --surface:  #161b22;
+  --surface2: #1c2128;
+  --border:   #30363d;
+  --text:     #e6edf3;
+  --muted:    #8b949e;
+  --blue:     #58a6ff;
+  --green:    #3fb950;
+  --red:      #ff7b72;
+  --yellow:   #f0c040;
+  --purple:   #bc8cff;
+  --font-mono: ui-monospace, "SF Mono", "Cascadia Code", "Fira Code", monospace;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  --radius: 8px;
+  --max-w: 860px;
+}
+
+html { scroll-behavior: smooth; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 16px;
+  line-height: 1.7;
+  -webkit-font-smoothing: antialiased;
+}
+
+a { color: var(--blue); text-decoration: none; }
+a:hover { text-decoration: underline; }
+
+/* ─── Nav ──────────────────────────────────────────────────────────────────── */
+nav {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: rgba(13,17,23,0.85);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border);
+  padding: 0 24px;
+  height: 56px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.nav-logo {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text);
+  text-decoration: none;
+}
+
+.nav-logo svg { flex-shrink: 0; }
+
+.nav-links {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  font-size: 14px;
+  color: var(--muted);
+}
+
+.nav-links a { color: var(--muted); }
+.nav-links a:hover { color: var(--text); text-decoration: none; }
+
+.nav-github {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 13px;
+  color: var(--text) !important;
+  transition: border-color 0.15s, background 0.15s;
+}
+.nav-github:hover {
+  border-color: var(--blue);
+  background: rgba(88,166,255,0.08);
+}
+
+/* ─── Hero ─────────────────────────────────────────────────────────────────── */
+#hero {
+  text-align: center;
+  padding: 80px 24px 72px;
+  max-width: var(--max-w);
+  margin: 0 auto;
+}
+
+.hero-reel {
+  display: inline-block;
+  margin-bottom: 24px;
+  animation: spin 12s linear infinite;
+  transform-origin: center;
+}
+
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+#hero h1 {
+  font-size: clamp(2rem, 6vw, 3.2rem);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  margin-bottom: 16px;
+}
+
+#hero h1 span { color: var(--blue); }
+
+.hero-sub {
+  font-size: clamp(1rem, 2.5vw, 1.2rem);
+  color: var(--muted);
+  max-width: 560px;
+  margin: 0 auto 40px;
+}
+
+.install-block {
+  display: inline-flex;
+  align-items: center;
+  gap: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: 15px;
+  margin-bottom: 40px;
+}
+
+.install-cmd {
+  padding: 12px 20px;
+  color: var(--green);
+  user-select: all;
+}
+
+.install-copy {
+  background: none;
+  border: none;
+  border-left: 1px solid var(--border);
+  padding: 12px 16px;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 13px;
+  transition: background 0.15s, color 0.15s;
+  font-family: var(--font-sans);
+}
+.install-copy:hover { background: var(--surface2); color: var(--text); }
+.install-copy.copied { color: var(--green); }
+
+/* ─── Buy me a coffee placeholder ─────────────────────────────────────────── */
+.support-slot {
+  display: flex;
+  justify-content: center;
+  margin-bottom: 16px;
+  min-height: 44px;
+}
+
+/* ↓↓↓ DROP YOUR BUY ME A COFFEE BUTTON WIDGET INSIDE .support-slot ↓↓↓ */
+.support-placeholder {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 20px;
+  background: var(--surface);
+  border: 1px dashed var(--border);
+  border-radius: 24px;
+  color: var(--muted);
+  font-size: 14px;
+  cursor: default;
+}
+
+/* ─── Section layout ───────────────────────────────────────────────────────── */
+section {
+  max-width: var(--max-w);
+  margin: 0 auto;
+  padding: 64px 24px;
+  border-top: 1px solid var(--border);
+}
+
+section h2 {
+  font-size: 1.5rem;
+  font-weight: 700;
+  margin-bottom: 8px;
+  letter-spacing: -0.01em;
+}
+
+.section-sub {
+  color: var(--muted);
+  margin-bottom: 40px;
+  font-size: 15px;
+}
+
+/* ─── How it works ─────────────────────────────────────────────────────────── */
+.flow {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: 14px;
+}
+
+.flow-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 20px;
+  width: 100%;
+  border-bottom: 1px solid var(--border);
+}
+.flow-row:last-child { border-bottom: none; }
+
+.flow-row.muted { color: var(--muted); }
+.flow-row.accent { color: var(--green); }
+.flow-row.branch {
+  background: var(--surface2);
+  color: var(--muted);
+  font-size: 13px;
+  padding-left: 40px;
+}
+
+.flow-arrow { color: var(--border); }
+.flow-tag {
+  display: inline-block;
+  padding: 1px 7px;
+  background: rgba(255,119,114,0.15);
+  color: var(--red);
+  border-radius: 4px;
+  font-size: 12px;
+  margin-left: 6px;
+}
+
+/* ─── Commands ─────────────────────────────────────────────────────────────── */
+.commands-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 16px;
+}
+
+.cmd-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 24px;
+  transition: border-color 0.15s;
+}
+.cmd-card:hover { border-color: var(--blue); }
+
+.cmd-name {
+  font-family: var(--font-mono);
+  font-size: 1.1rem;
+  font-weight: 600;
+  margin-bottom: 8px;
+}
+
+.cmd-card:nth-child(1) .cmd-name { color: var(--blue); }
+.cmd-card:nth-child(2) .cmd-name { color: var(--purple); }
+.cmd-card:nth-child(3) .cmd-name { color: var(--yellow); }
+
+.cmd-desc {
+  color: var(--muted);
+  font-size: 14px;
+  line-height: 1.6;
+  margin-bottom: 16px;
+}
+
+.cmd-examples {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.cmd-ex {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--muted);
+  background: var(--surface2);
+  border-radius: 4px;
+  padding: 4px 10px;
+}
+.cmd-ex span { color: var(--text); }
+
+/* ─── Privacy ──────────────────────────────────────────────────────────────── */
+.privacy-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.privacy-item {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  padding: 16px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 14px;
+}
+
+.privacy-icon { font-size: 18px; flex-shrink: 0; line-height: 1.4; }
+.privacy-text { color: var(--muted); }
+.privacy-text strong { color: var(--text); display: block; margin-bottom: 2px; font-size: 13px; }
+
+/* ─── Footer ───────────────────────────────────────────────────────────────── */
+footer {
+  border-top: 1px solid var(--border);
+  padding: 32px 24px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+footer a { color: var(--muted); }
+footer a:hover { color: var(--text); }
+
+.footer-inner {
+  max-width: var(--max-w);
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+/* ─── Responsive ───────────────────────────────────────────────────────────── */
+@media (max-width: 600px) {
+  .nav-links .hide-mobile { display: none; }
+  .install-block { font-size: 13px; }
+  .install-cmd { padding: 10px 14px; }
+  .footer-inner { justify-content: center; }
+}
+</style>
+</head>
+
+<body>
+
+<!-- ─── Nav ──────────────────────────────────────────────────────────────────── -->
+<nav>
+  <a class="nav-logo" href="#">
+    <svg width="22" height="22" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+      <circle cx="32" cy="32" r="29" stroke="#58a6ff" stroke-width="2.5"/>
+      <circle cx="32" cy="32" r="10" stroke="#58a6ff" stroke-width="2"/>
+      <circle cx="32" cy="32" r="4" fill="#58a6ff"/>
+      <line x1="32" y1="22" x2="32" y2="3"  stroke="#58a6ff" stroke-width="2" stroke-linecap="round"/>
+      <line x1="32" y1="42" x2="32" y2="61" stroke="#58a6ff" stroke-width="2" stroke-linecap="round"/>
+      <line x1="22" y1="32" x2="3"  y2="32" stroke="#58a6ff" stroke-width="2" stroke-linecap="round"/>
+      <line x1="42" y1="32" x2="61" y2="32" stroke="#58a6ff" stroke-width="2" stroke-linecap="round"/>
+    </svg>
+    tapeback
+  </a>
+  <div class="nav-links">
+    <a href="#commands" class="hide-mobile">Commands</a>
+    <a href="#privacy" class="hide-mobile">Privacy</a>
+    <a href="https://github.com/aligredo/tapeback" class="nav-github" target="_blank" rel="noopener">
+      <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor" aria-hidden="true">
+        <path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38
+          0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13
+          -.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87
+          2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95
+          0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82
+          .64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82
+          2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15
+          0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48
+          0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/>
+      </svg>
+      GitHub
+    </a>
+  </div>
+</nav>
+
+<!-- ─── Hero ─────────────────────────────────────────────────────────────────── -->
+<section id="hero" style="border-top: none;">
+  <div class="hero-reel" aria-hidden="true">
+    <svg width="56" height="56" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <circle cx="32" cy="32" r="29" stroke="#58a6ff" stroke-width="2.5" stroke-dasharray="6 3"/>
+      <circle cx="32" cy="32" r="14" stroke="#30363d" stroke-width="8"/>
+      <circle cx="32" cy="32" r="10" stroke="#58a6ff" stroke-width="2"/>
+      <circle cx="32" cy="32" r="4" fill="#58a6ff"/>
+      <line x1="32" y1="22" x2="32" y2="3"  stroke="#58a6ff" stroke-width="2" stroke-linecap="round"/>
+      <line x1="32" y1="42" x2="32" y2="61" stroke="#58a6ff" stroke-width="2" stroke-linecap="round"/>
+      <line x1="22" y1="32" x2="3"  y2="32" stroke="#58a6ff" stroke-width="2" stroke-linecap="round"/>
+      <line x1="42" y1="32" x2="61" y2="32" stroke="#58a6ff" stroke-width="2" stroke-linecap="round"/>
+    </svg>
+  </div>
+
+  <h1>The <span>rewind button</span><br>for Claude Code</h1>
+
+  <p class="hero-sub">
+    Every Claude edit is automatically committed with a <code style="font-family:var(--font-mono);color:var(--red);background:rgba(255,119,114,0.1);padding:1px 6px;border-radius:4px">[REC]</code> tag.
+    Rewind to any moment, squash recordings before a PR, or visualise your session as an interactive git graph.
+  </p>
+
+  <div class="install-block">
+    <span class="install-cmd" id="install-cmd">npx tapeback init</span>
+    <button class="install-copy" id="copy-btn" onclick="copyInstall()" aria-label="Copy install command">
+      Copy
+    </button>
+  </div>
+
+  <!-- ↓↓↓ BUY ME A COFFEE — paste your widget here ↓↓↓ -->
+  <div class="support-slot">
+    <div class="support-placeholder" aria-hidden="true">
+      ☕ Support the project — coming soon
+    </div>
+  </div>
+  <!-- ↑↑↑ BUY ME A COFFEE ↑↑↑ -->
+</section>
+
+<!-- ─── How it works ─────────────────────────────────────────────────────────── -->
+<section id="how-it-works">
+  <h2>How it works</h2>
+  <p class="section-sub">
+    A single <code style="font-family:var(--font-mono);font-size:13px">PostToolUse</code> hook fires silently after every Claude write. No configuration needed beyond <code style="font-family:var(--font-mono);font-size:13px">npx tapeback init</code>.
+  </p>
+
+  <div class="flow">
+    <div class="flow-row accent">
+      <span>Claude edits one or more files</span>
+    </div>
+    <div class="flow-row muted">
+      <span class="flow-arrow">↓</span>
+      <span>PostToolUse hook fires</span>
+    </div>
+    <div class="flow-row muted">
+      <span class="flow-arrow">↓</span>
+      <span>Any tracked files changed?</span>
+      <span style="margin-left:auto;font-size:12px">No → exit 0 (silent)</span>
+    </div>
+    <div class="flow-row muted">
+      <span class="flow-arrow">↓</span>
+      <span>Yes → <code style="font-family:var(--font-mono);font-size:12px">git add -A</code></span>
+    </div>
+    <div class="flow-row muted">
+      <span class="flow-arrow">↓</span>
+      <span>Generate headline <span style="font-size:12px">(claude -p with 5 s timeout → deterministic fallback)</span></span>
+    </div>
+    <div class="flow-row accent">
+      <span class="flow-arrow">↓</span>
+      <span><code style="font-family:var(--font-mono);font-size:13px">git commit "chore(tapeback): &lt;headline&gt;</code><span class="flow-tag">[REC]</span><code style="font-family:var(--font-mono);font-size:13px">"</code></span>
+    </div>
+    <div class="flow-row muted">
+      <span class="flow-arrow">↓</span>
+      <span>exit 0 — <em>always, never blocks Claude</em></span>
+    </div>
+  </div>
+</section>
+
+<!-- ─── Commands ─────────────────────────────────────────────────────────────── -->
+<section id="commands">
+  <h2>Commands</h2>
+  <p class="section-sub">Three slash commands, available inside every Claude Code session after <code style="font-family:var(--font-mono);font-size:13px">npx tapeback init</code>.</p>
+
+  <div class="commands-grid">
+
+    <div class="cmd-card">
+      <div class="cmd-name">/tapeback</div>
+      <p class="cmd-desc">
+        Rewind the codebase to any previous recording. Shows exactly what will change and always asks for confirmation before touching anything.
+      </p>
+      <div class="cmd-examples">
+        <div class="cmd-ex"><span>/tapeback</span> &nbsp;— undo last recording</div>
+        <div class="cmd-ex"><span>/tapeback 3</span> &nbsp;— undo last 3</div>
+        <div class="cmd-ex"><span>/tapeback --to &lt;hash&gt;</span></div>
+        <div class="cmd-ex"><span>/tapeback --to "14:30"</span></div>
+      </div>
+    </div>
+
+    <div class="cmd-card">
+      <div class="cmd-name">/squash</div>
+      <p class="cmd-desc">
+        Collapses every commit from the first <code style="font-family:var(--font-mono);font-size:12px;color:var(--red)">[REC]</code> to the last into a single conventional commit. Commits outside that zone are left untouched.
+      </p>
+      <div class="cmd-examples">
+        <div class="cmd-ex"><span>/squash</span> &nbsp;— interactive prompt</div>
+        <div class="cmd-ex" style="color:var(--muted)">Creates backup tag first</div>
+        <div class="cmd-ex" style="color:var(--muted)">Always recoverable</div>
+      </div>
+    </div>
+
+    <div class="cmd-card">
+      <div class="cmd-name">/reel</div>
+      <p class="cmd-desc">
+        Renders a self-contained HTML git graph and opens it in your browser. Hover any commit dot for full details.
+      </p>
+      <div class="cmd-examples">
+        <div class="cmd-ex"><span>/reel</span> &nbsp;— opens in browser</div>
+        <div class="cmd-ex" style="color:var(--blue)">● feature branch</div>
+        <div class="cmd-ex" style="color:var(--green)">● base branch</div>
+        <div class="cmd-ex" style="color:var(--red)">● [REC] commits</div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<!-- ─── Privacy ──────────────────────────────────────────────────────────────── -->
+<section id="privacy">
+  <h2>Private by design</h2>
+  <p class="section-sub">tapeback is a git workflow layer. It stores no credentials and makes no network calls.</p>
+
+  <div class="privacy-grid">
+    <div class="privacy-item">
+      <span class="privacy-icon">🔒</span>
+      <div class="privacy-text">
+        <strong>No credentials</strong>
+        Never requests, stores, or transmits any API keys or tokens.
+      </div>
+    </div>
+    <div class="privacy-item">
+      <span class="privacy-icon">📴</span>
+      <div class="privacy-text">
+        <strong>Offline hook</strong>
+        The recording hook runs entirely locally — no network calls.
+      </div>
+    </div>
+    <div class="privacy-item">
+      <span class="privacy-icon">🔍</span>
+      <div class="privacy-text">
+        <strong>Fully open source</strong>
+        Every line of hook and command logic is readable in the repo.
+      </div>
+    </div>
+    <div class="privacy-item">
+      <span class="privacy-icon">⚡</span>
+      <div class="privacy-text">
+        <strong>Zero npm dependencies</strong>
+        Runs on Node.js built-ins and bash. Nothing to audit beyond the repo itself.
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── Footer ───────────────────────────────────────────────────────────────── -->
+<footer>
+  <div class="footer-inner">
+    <span>
+      <a href="https://github.com/aligredo/tapeback" target="_blank" rel="noopener">tapeback</a>
+      &nbsp;·&nbsp; MIT licence
+    </span>
+    <span>
+      Built for <a href="https://claude.ai/code" target="_blank" rel="noopener">Claude Code</a>
+    </span>
+  </div>
+</footer>
+
+<script>
+function copyInstall() {
+  var btn = document.getElementById('copy-btn');
+  navigator.clipboard.writeText('npx tapeback init').then(function() {
+    btn.textContent = 'Copied!';
+    btn.classList.add('copied');
+    setTimeout(function() {
+      btn.textContent = 'Copy';
+      btn.classList.remove('copied');
+    }, 2000);
+  }).catch(function() {
+    btn.textContent = 'Copy';
+  });
+}
+</script>
+
+</body>
+</html>
