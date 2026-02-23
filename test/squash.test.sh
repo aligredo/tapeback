@@ -94,18 +94,22 @@ const fs = require('fs');
 const { execSync } = require('child_process');
 const f = process.argv[2];
 const lines = fs.readFileSync(f, 'utf8').split('\n');
-const recLines = [], nonRecLines = [], otherLines = [];
-for (const l of lines) {
+const pickLines = lines.filter(l => l.match(/^pick\s+[0-9a-f]+/));
+const isRec = pickLines.map(l => {
   const m = l.match(/^pick\s+([0-9a-f]+)/);
-  if (!m) { otherLines.push(l); continue; }
-  const s = execSync('git log -1 --format=%s ' + m[1]).toString().trim();
-  (s.includes('[REC]') ? recLines : nonRecLines).push(l);
-}
-const out = [
-  ...recLines.map((l, i) => l.replace(/^pick/, i === 0 ? 'reword' : 'fixup')),
-  ...nonRecLines,
-  ...otherLines,
-];
+  return execSync('git log -1 --format=%s ' + m[1]).toString().trim().includes('[REC]');
+});
+const firstRecIdx = isRec.indexOf(true);
+const lastRecIdx  = isRec.lastIndexOf(true);
+if (firstRecIdx === -1) { fs.writeFileSync(f, lines.join('\n')); process.exit(0); }
+let pickIdx = 0, zoneStarted = false;
+const out = lines.map(l => {
+  if (!l.match(/^pick\s+[0-9a-f]+/)) return l;
+  const idx = pickIdx++;
+  if (idx < firstRecIdx || idx > lastRecIdx) return l;
+  if (!zoneStarted) { zoneStarted = true; return l.replace(/^pick/, 'reword'); }
+  return l.replace(/^pick/, 'fixup');
+});
 fs.writeFileSync(f, out.join('\n'));
 JSEOF
   GIT_SEQUENCE_EDITOR="node $seq_editor" \
@@ -202,7 +206,7 @@ count=$(rec_count_since_base "$T")
 assert_eq "$count" "1" "reports 1 when only one [REC] commit exists"
 cleanup "$T"
 
-# ── 7. Non-REC commits survive the selective squash unchanged ─────────────────
+# ── 7. Manual commit between [REC] commits is squashed into the zone ──────────
 
 T=$(make_repo)
 rec_commit   "$T" "recording one" "a.txt"
@@ -211,15 +215,15 @@ rec_commit   "$T" "recording two" "b.txt"
 
 run_selective_squash "$T" "feat: combined recordings"
 
-# History should now have 2 commits since base: 1 squashed [REC] + 1 plain
+# Zone = REC1..REC2 (inclusive of manual between them) → collapses to 1 commit
 total_after="$(git -C "$T" log --oneline HEAD ^test-base | wc -l | tr -d ' ')"
-assert_eq "$total_after" "2" "2 commits remain after selective squash (1 squashed REC + 1 plain)"
+assert_eq "$total_after" "1" "manual commit inside zone is squashed with [REC] commits"
 
-log="$(git -C "$T" log --oneline HEAD ^test-base)"
-assert_contains "$log" "manual tweak" "non-REC commit (manual tweak) survives the squash"
+msg="$(git -C "$T" log -1 --pretty=%s)"
+assert_eq "$msg" "feat: combined recordings" "squashed commit has user-provided message"
 
-assert_eq "$([ -f "$T/a.txt" ] && echo yes || echo no)" "yes" "a.txt preserved after selective squash"
-assert_eq "$([ -f "$T/b.txt" ] && echo yes || echo no)" "yes" "b.txt preserved after selective squash"
+assert_eq "$([ -f "$T/a.txt" ] && echo yes || echo no)" "yes" "a.txt preserved after zone squash"
+assert_eq "$([ -f "$T/b.txt" ] && echo yes || echo no)" "yes" "b.txt preserved after zone squash"
 cleanup "$T"
 
 # ── 8. Backup tag allows full recovery after squash ───────────────────────────
@@ -270,27 +274,27 @@ stat="$(git -C "$T" diff "${oldest}^" HEAD --stat | tail -1)"
 assert_contains "$stat" "files changed" "diff stat across recording range is computable"
 cleanup "$T"
 
-# ── 11. Interleaved non-REC commits: all RECs squash together, manual intact ──
+# ── 11. Manual commit AFTER last [REC] is outside the zone and preserved ──────
 
 T=$(make_repo)
 rec_commit   "$T" "recording one" "a.txt"
-plain_commit "$T" "manual tweak"
 rec_commit   "$T" "recording two" "b.txt"
+plain_commit "$T" "manual after"
 
 run_selective_squash "$T" "feat: all claude work"
 
-# Should have exactly 2 commits since base: squashed REC + manual
+# Zone = REC1..REC2; manual is after the zone → preserved as its own commit
 total="$(git -C "$T" log --oneline HEAD ^test-base | wc -l | tr -d ' ')"
-assert_eq "$total" "2" "interleaved: exactly 2 commits after squash"
+assert_eq "$total" "2" "manual after zone: 2 commits remain (squashed RECs + manual)"
 
-# The squashed commit (HEAD~1) must contain both a.txt and b.txt
+# HEAD is the manual commit (it was replayed after the squashed zone)
+head_msg="$(git -C "$T" log -1 --pretty=%s)"
+assert_contains "$head_msg" "manual after" "manual commit after zone is preserved at HEAD"
+
+# Squashed commit (HEAD~1) contains both REC files
 squashed_files="$(git -C "$T" show --name-only --format="" HEAD~1)"
-assert_contains "$squashed_files" "a.txt" "interleaved: a.txt is in the squashed REC commit"
-assert_contains "$squashed_files" "b.txt" "interleaved: b.txt is in the squashed REC commit, not in manual"
-
-# The manual commit (HEAD) must NOT contain b.txt
-manual_files="$(git -C "$T" show --name-only --format="" HEAD)"
-assert_eq "$(echo "$manual_files" | grep -c "b.txt" || true)" "0" "interleaved: manual commit is untouched by REC changes"
+assert_contains "$squashed_files" "a.txt" "a.txt is in the squashed REC commit"
+assert_contains "$squashed_files" "b.txt" "b.txt is in the squashed REC commit"
 cleanup "$T"
 
 # ─── Summary ──────────────────────────────────────────────────────────────────

@@ -1,6 +1,6 @@
 # /squash
 
-Squash all tapeback `[REC]` recordings into a single clean conventional commit, leaving all other commits untouched.
+Squash all tapeback `[REC]` recordings — and any manual commits that fall between them — into a single clean conventional commit. Commits before the first `[REC]` or after the last `[REC]` are left untouched.
 
 ---
 
@@ -32,28 +32,43 @@ If 1 recording found:
 - Tell the user: "Only 1 recording found. You can rename it directly with `git commit --amend` if you like, but there's nothing to squash."
 - Stop.
 
-### Step 3 — Summarize the recordings
+### Step 3 — Summarize the squash zone
 
-For each `[REC]` commit found (newest first), extract:
-- The headline (commit subject, minus the `chore(tapeback):` prefix and `[REC]` suffix)
-- The files changed (from `git show --stat <hash>`)
+The **squash zone** is every commit from the oldest `[REC]` to the newest `[REC]`, inclusive. Manual commits inside that range are also squashed in.
 
-Aggregate across all commits:
-- Total unique files changed
-- Total `+additions` and `-deletions` (from `git diff <oldest-rec-hash>^ HEAD --stat | tail -1`)
+Find the zone boundaries:
+```bash
+OLDEST_REC=$(git log --oneline HEAD ^<BASE_REF> --grep='\[REC\]' --format='%H' | tail -1)
+NEWEST_REC=$(git log --oneline HEAD ^<BASE_REF> --grep='\[REC\]' --format='%H' | head -1)
+```
+
+List all commits in the zone (newest first):
+```bash
+git log --oneline ${OLDEST_REC}^..${NEWEST_REC}
+```
+
+For each commit in the zone, show its subject and files changed (from `git show --stat <hash>`).
 
 Display:
 ```
 Found <N> [REC] recordings since branching from <BASE_REF>.
+<M> manual commits inside the recording range will also be included.
 
 ─────────────────────────────────────────────
-Summary of all recorded changes:
-  - <headline 1>    (<files changed>)
-  - <headline 2>    (<files changed>)
-  - ...
+Squash zone (<oldest-rec-hash>..<newest-rec-hash>):
+  [REC]  <headline 1>    (<files changed>)
+         <manual commit> (<files changed>)    ← if any
+  [REC]  <headline 2>    (<files changed>)
+  ...
 
-Files changed: <X> files  |  +<additions> additions  -<deletions> deletions
+Files changed: <X> files  |  +<additions> -<deletions>
+  (from git diff <oldest-rec-hash>^ <newest-rec-hash> --stat | tail -1)
 ─────────────────────────────────────────────
+```
+
+If there are manual commits outside the zone (before the oldest `[REC]` or after the newest `[REC]`), mention them:
+```
+Note: <K> commit(s) outside the recording range will be preserved as-is.
 ```
 
 ### Step 4 — Safety: create a backup tag
@@ -99,9 +114,9 @@ Proceed anyway? [y/N]
 
 Stop if the user says anything other than `y` or `yes`.
 
-### Step 7 — Execute the selective squash
+### Step 7 — Execute the squash
 
-Only `[REC]` commits are squashed. All non-`[REC]` commits survive untouched in the history.
+The sequence editor squashes everything in the zone (first `[REC]` through last `[REC]`, inclusive) into one commit. Commits before or after the zone are replayed unchanged as `pick` — no reordering, no conflict risk.
 
 **a. Write the final commit message to a temp file:**
 ```bash
@@ -119,18 +134,22 @@ const repoRoot = execSync('git rev-parse --show-toplevel').toString().trim();
 let recTag = '[REC]';
 try { recTag = JSON.parse(fs.readFileSync(path.join(repoRoot, '.tapeback.json'), 'utf8')).recTag || '[REC]'; } catch {}
 const lines = fs.readFileSync(f, 'utf8').split('\n');
-const recLines = [], nonRecLines = [], otherLines = [];
-for (const l of lines) {
+const pickLines = lines.filter(l => l.match(/^pick\s+[0-9a-f]+/));
+const isRec = pickLines.map(l => {
   const m = l.match(/^pick\s+([0-9a-f]+)/);
-  if (!m) { otherLines.push(l); continue; }
-  const subject = execSync('git log -1 --format=%s ' + m[1]).toString().trim();
-  (subject.includes(recTag) ? recLines : nonRecLines).push(l);
-}
-const out = [
-  ...recLines.map((l, i) => l.replace(/^pick/, i === 0 ? 'reword' : 'fixup')),
-  ...nonRecLines,
-  ...otherLines,
-];
+  return execSync('git log -1 --format=%s ' + m[1]).toString().trim().includes(recTag);
+});
+const firstRecIdx = isRec.indexOf(true);
+const lastRecIdx  = isRec.lastIndexOf(true);
+if (firstRecIdx === -1) { fs.writeFileSync(f, lines.join('\n')); process.exit(0); }
+let pickIdx = 0, zoneStarted = false;
+const out = lines.map(l => {
+  if (!l.match(/^pick\s+[0-9a-f]+/)) return l;
+  const idx = pickIdx++;
+  if (idx < firstRecIdx || idx > lastRecIdx) return l;        // outside zone: pick
+  if (!zoneStarted) { zoneStarted = true; return l.replace(/^pick/, 'reword'); } // zone start
+  return l.replace(/^pick/, 'fixup');                          // inside zone: squash in
+});
 fs.writeFileSync(f, out.join('\n'));
 EOF
 ```
@@ -141,10 +160,6 @@ GIT_SEQUENCE_EDITOR="node /tmp/tapeback_seq_editor.js" \
 GIT_EDITOR="cp /tmp/tapeback_squash_msg.txt" \
 git rebase -i <BASE_REF>
 ```
-
-The sequence editor groups all `[REC]` commits together at the top of the rebase todo (oldest first), marking the first as `reword` (git applies the user's message) and the rest as `fixup` (squashed into it, messages discarded). All non-`[REC]` commits follow as `pick` and are replayed unchanged on top of the squashed result.
-
-This handles interleaved commits correctly: even if the user made manual commits between recordings, all `[REC]` changes land in a single commit and manual commits survive untouched.
 
 **d. Clean up:**
 ```bash
@@ -171,7 +186,7 @@ Recovery: git reset --hard tapeback/pre-squash-<timestamp>
 
 - **Always** create the backup tag (Step 4) before any git mutation.
 - Never squash commits from other branches. Only squash commits reachable from `HEAD` but not from `BASE_REF`.
-- Never squash non-`[REC]` commits. Only commits whose subject contains the `recTag` string are squash targets.
+- The squash zone is `[oldest-REC .. newest-REC]`. Manual commits inside this range are squashed in; commits outside are preserved.
 - Only squash when there are ≥ 2 `[REC]` commits. For 0 or 1, stop early with a clear message.
 - If `git rebase` fails, tell the user the exact error and remind them the backup tag exists for recovery.
 - Do not push. Squash is a local operation only.
