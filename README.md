@@ -49,6 +49,14 @@ tapeback will show you exactly what will change and ask for confirmation before 
 
 Squashes all `[REC]` recordings since your branch diverged from `main` into a single conventional commit. Shows a summary of everything Claude changed, prompts for your final commit message, and creates a backup tag before touching anything.
 
+### `/reel` — interactive git graph
+
+```bash
+/reel
+```
+
+Renders a self-contained HTML git graph and opens it in your browser. Commits appear as coloured dots (blue = feature, green = base, red = `[REC]`, yellow = diverge point). Hover any dot for full commit details.
+
 ---
 
 ## How it works
@@ -128,6 +136,7 @@ tapeback reads `.tapeback.json` from your project root:
 - The hook has a **5-second hard timeout** on AI message generation
 - `/squash` **always creates a backup tag** before any git mutation — your session is always recoverable
 - `/tapeback` **always previews** what will change and asks for confirmation
+- `/reel` is **read-only** — it never modifies git history or files
 
 ---
 
@@ -144,15 +153,19 @@ tapeback/
 │   │   └── post-tool-use.sh        # Core auto-record hook
 │   ├── commands/
 │   │   ├── tapeback.md             # /tapeback slash command
-│   │   └── squash.md               # /squash slash command
+│   │   ├── squash.md               # /squash slash command
+│   │   └── reel.md                 # /reel slash command
 │   └── settings.json               # Hook wiring for Claude Code
 ├── src/
 │   ├── commit-message.js           # Headline generation module
-│   └── generate-headline.js        # CLI wrapper for the hook
+│   ├── generate-headline.js        # CLI wrapper for the hook
+│   ├── git-graph.js                # Git graph data builder
+│   └── generate-reel.js            # HTML graph renderer for /reel
 ├── test/
 │   ├── hook.test.sh
 │   ├── tapeback.test.sh
 │   ├── squash.test.sh
+│   ├── reel.test.sh
 │   └── commands.test.js
 └── .tapeback.json                  # Default config (copied on init)
 ```

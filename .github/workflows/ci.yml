@@ -40,3 +40,6 @@ jobs:
 
       - name: Run squash integration tests
         run: bash test/squash.test.sh
+
+      - name: Run reel integration tests
+        run: bash test/reel.test.sh

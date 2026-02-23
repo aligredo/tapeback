@@ -7,8 +7,8 @@ This file tells Claude how to work in the `tapeback` repository.
 ## What this repo is
 
 `tapeback` is a Claude Code plugin that automatically records every agent edit
-as a `[REC]`-tagged git commit, then provides `/tapeback` and `/squash`
-slash commands for rewinding or cleaning up the history.
+as a `[REC]`-tagged git commit, then provides `/tapeback`, `/squash`, and `/reel`
+slash commands for rewinding, cleaning up history, and visualising the git graph.
 
 ---
 
@@ -18,13 +18,17 @@ slash commands for rewinding or cleaning up the history.
 plugin/hooks/post-tool-use.sh   Core bash hook — fires on Write/Edit/MultiEdit
 plugin/commands/tapeback.md     /tapeback slash command prompt
 plugin/commands/squash.md       /squash slash command prompt
+plugin/commands/reel.md         /reel slash command prompt
 plugin/settings.json            Hook wiring for Claude Code
 src/commit-message.js           AI headline generation module
 src/generate-headline.js        CLI wrapper called by the hook
+src/git-graph.js                Git graph data builder (used by /reel)
+src/generate-reel.js            HTML graph renderer (used by /reel)
 bin/tapeback.js                 npx tapeback init CLI
 test/hook.test.sh               Hook integration tests (bash, real git sandboxes)
 test/tapeback.test.sh           /tapeback integration tests (bash)
 test/squash.test.sh             /squash integration tests (bash)
+test/reel.test.sh               /reel integration tests (bash)
 test/commands.test.js           commit-message.js unit tests (node --test)
 .tapeback.json                  Default config template (copied on init)
 ```
@@ -41,10 +45,11 @@ npm test
 bash test/hook.test.sh
 bash test/tapeback.test.sh
 bash test/squash.test.sh
+bash test/reel.test.sh
 node --test test/commands.test.js
 ```
 
-All tests must pass before committing. There are currently 71 tests.
+All tests must pass before committing. There are currently 81 tests.
 
 ---
 

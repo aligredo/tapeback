@@ -30,7 +30,7 @@
     ".tapeback.json"
   ],
   "scripts": {
-    "test": "node --test test/commands.test.js && bash test/hook.test.sh"
+    "test": "node --test test/commands.test.js && bash test/hook.test.sh && bash test/tapeback.test.sh && bash test/squash.test.sh && bash test/reel.test.sh"
   },
   "engines": {
     "node": ">=18.0.0"

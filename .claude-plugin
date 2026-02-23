@@ -21,6 +21,11 @@
       "name": "squash",
       "description": "Squash all [REC] recordings since branch divergence into one clean conventional commit.",
       "file": "commands/squash.md"
+    },
+    {
+      "name": "reel",
+      "description": "Render an interactive HTML git graph for the current branch — hover any commit for details.",
+      "file": "commands/reel.md"
     }
   ],
   "install": {

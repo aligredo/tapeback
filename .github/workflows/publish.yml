@@ -33,6 +33,7 @@ jobs:
           bash test/hook.test.sh
           bash test/tapeback.test.sh
           bash test/squash.test.sh
+          bash test/reel.test.sh
 
       - name: Publish to npm
         run: npm publish --provenance --access public

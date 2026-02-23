@@ -27,10 +27,11 @@ Or run individual suites:
 bash test/hook.test.sh          # Hook integration tests (13)
 bash test/tapeback.test.sh      # /tapeback integration tests (19)
 bash test/squash.test.sh        # /squash integration tests (22)
+bash test/reel.test.sh          # /reel integration tests (10)
 node --test test/commands.test.js  # JS unit tests (17)
 ```
 
-All 71 tests must pass before opening a PR.
+All 81 tests must pass before opening a PR.
 
 ---
 
@@ -41,6 +42,9 @@ All 71 tests must pass before opening a PR.
 | `plugin/hooks/post-tool-use.sh` | The core hook — must always exit 0 |
 | `plugin/commands/tapeback.md` | `/tapeback` Claude prompt |
 | `plugin/commands/squash.md` | `/squash` Claude prompt |
+| `plugin/commands/reel.md` | `/reel` Claude prompt |
+| `src/git-graph.js` | Git graph data builder |
+| `src/generate-reel.js` | HTML graph renderer |
 | `src/commit-message.js` | Headline generation module |
 | `src/generate-headline.js` | CLI wrapper for the hook |
 | `bin/tapeback.js` | `npx tapeback init` CLI |

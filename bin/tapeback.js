@@ -7,7 +7,8 @@ const { execSync } = require('child_process');
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
 
-const PLUGIN_DIR = path.resolve(__dirname, '..', 'plugin');
+const PLUGIN_DIR  = path.resolve(__dirname, '..', 'plugin');
+const SRC_DIR     = path.resolve(__dirname, '..', 'src');
 const DEFAULT_CONFIG = path.resolve(__dirname, '..', '.tapeback.json');
 
 function log(msg) {
@@ -104,7 +105,17 @@ function cmdInit(args) {
     }
   }
 
-  // 4. Merge settings.json
+  // 4. Copy src/ scripts (needed by /reel and the headline generator)
+  if (fs.existsSync(SRC_DIR)) {
+    for (const file of fs.readdirSync(SRC_DIR)) {
+      const src  = path.join(SRC_DIR, file);
+      const dest = path.join(targetBase, 'src', file);
+      copyFile(src, dest);
+      log('  ✓ Script installed:  ' + path.relative(process.cwd(), dest));
+    }
+  }
+
+  // 5. Merge settings.json
   const incomingSettings = JSON.parse(
     fs.readFileSync(path.join(PLUGIN_DIR, 'settings.json'), 'utf8')
   );
@@ -112,7 +123,7 @@ function cmdInit(args) {
   mergeSettings(settingsDest, incomingSettings);
   log('  ✓ Hook wired in:     ' + path.relative(process.cwd(), settingsDest));
 
-  // 5. Copy .tapeback.json (default config) if not already present
+  // 6. Copy .tapeback.json (default config) if not already present
   if (!isGlobal) {
     const configDest = path.join(process.cwd(), '.tapeback.json');
     if (!fs.existsSync(configDest)) {
@@ -130,6 +141,7 @@ function cmdInit(args) {
   log('    /tapeback        — rewind the last recording');
   log('    /tapeback 3      — rewind the last 3 recordings');
   log('    /squash          — squash all recordings into one clean commit');
+  log('    /reel            — open an interactive HTML git graph in your browser');
   log('');
   log('  Configuration: .tapeback.json');
   log('  Docs: https://github.com/aligredo/tapeback');
