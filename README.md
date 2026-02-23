@@ -47,7 +47,9 @@ tapeback will show you exactly what will change and ask for confirmation before 
 /squash
 ```
 
-Squashes all `[REC]` recordings since your branch diverged from `main` into a single conventional commit. Shows a summary of everything Claude changed, prompts for your final commit message, and creates a backup tag before touching anything.
+Squashes every commit from the first `[REC]` to the last `[REC]` — the **squash zone** — into a single conventional commit. Manual commits inside that range are squashed in too; commits before the first `[REC]` or after the last `[REC]` are left untouched.
+
+Shows a summary of everything in the zone, prompts for your final commit message, and creates a backup tag before touching anything.
 
 ### `/reel` — interactive git graph
 
