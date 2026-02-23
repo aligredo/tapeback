@@ -132,6 +132,19 @@ tapeback reads `.tapeback.json` from your project root:
 
 ---
 
+## Privacy & security
+
+tapeback is a pure **git workflow layer** — it stores no credentials, sends no data to external servers, and reads nothing from your codebase beyond what git already tracks.
+
+- **No API keys or tokens** — tapeback never requests, stores, or transmits any credentials
+- **No network calls** — the hook is offline; it runs entirely in your local git repo
+- **No data collection** — nothing leaves your machine except the optional `claude -p` headline call, which goes through your existing Claude Code session (the same one already running)
+- **Open source** — the full hook and command logic is readable in `plugin/hooks/post-tool-use.sh` and `plugin/commands/`
+
+tapeback is a thin wrapper that adds git discipline on top of what Claude Code already does. It maximises Claude's usefulness without adding any new trust surface.
+
+---
+
 ## Safety guarantees
 
 - The hook **always exits 0** — it can never block or crash your Claude session
