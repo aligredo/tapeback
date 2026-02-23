@@ -2,6 +2,8 @@
 
 > *Like rewinding a tape — tapeback automatically records every Claude Code agent action that changes your codebase, so you can rewind to any moment in your session.*
 
+[![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-aligredo-FFDD00?style=flat&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/aligredo)
+
 ---
 
 ## The problem
