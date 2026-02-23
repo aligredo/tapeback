@@ -94,15 +94,18 @@ const fs = require('fs');
 const { execSync } = require('child_process');
 const f = process.argv[2];
 const lines = fs.readFileSync(f, 'utf8').split('\n');
-let firstRec = true;
-const out = lines.map(l => {
+const recLines = [], nonRecLines = [], otherLines = [];
+for (const l of lines) {
   const m = l.match(/^pick\s+([0-9a-f]+)/);
-  if (!m) return l;
+  if (!m) { otherLines.push(l); continue; }
   const s = execSync('git log -1 --format=%s ' + m[1]).toString().trim();
-  if (!s.includes('[REC]')) return l;
-  if (firstRec) { firstRec = false; return l.replace(/^pick/, 'reword'); }
-  return l.replace(/^pick/, 'fixup');
-});
+  (s.includes('[REC]') ? recLines : nonRecLines).push(l);
+}
+const out = [
+  ...recLines.map((l, i) => l.replace(/^pick/, i === 0 ? 'reword' : 'fixup')),
+  ...nonRecLines,
+  ...otherLines,
+];
 fs.writeFileSync(f, out.join('\n'));
 JSEOF
   GIT_SEQUENCE_EDITOR="node $seq_editor" \
@@ -265,6 +268,29 @@ rec_commit "$T" "add file c" "gamma.txt"
 oldest=$(oldest_rec_hash "$T")
 stat="$(git -C "$T" diff "${oldest}^" HEAD --stat | tail -1)"
 assert_contains "$stat" "files changed" "diff stat across recording range is computable"
+cleanup "$T"
+
+# ── 11. Interleaved non-REC commits: all RECs squash together, manual intact ──
+
+T=$(make_repo)
+rec_commit   "$T" "recording one" "a.txt"
+plain_commit "$T" "manual tweak"
+rec_commit   "$T" "recording two" "b.txt"
+
+run_selective_squash "$T" "feat: all claude work"
+
+# Should have exactly 2 commits since base: squashed REC + manual
+total="$(git -C "$T" log --oneline HEAD ^test-base | wc -l | tr -d ' ')"
+assert_eq "$total" "2" "interleaved: exactly 2 commits after squash"
+
+# The squashed commit (HEAD~1) must contain both a.txt and b.txt
+squashed_files="$(git -C "$T" show --name-only --format="" HEAD~1)"
+assert_contains "$squashed_files" "a.txt" "interleaved: a.txt is in the squashed REC commit"
+assert_contains "$squashed_files" "b.txt" "interleaved: b.txt is in the squashed REC commit, not in manual"
+
+# The manual commit (HEAD) must NOT contain b.txt
+manual_files="$(git -C "$T" show --name-only --format="" HEAD)"
+assert_eq "$(echo "$manual_files" | grep -c "b.txt" || true)" "0" "interleaved: manual commit is untouched by REC changes"
 cleanup "$T"
 
 # ─── Summary ──────────────────────────────────────────────────────────────────

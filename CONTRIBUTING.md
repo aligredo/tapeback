@@ -26,11 +26,11 @@ Or run individual suites:
 ```bash
 bash test/hook.test.sh          # Hook integration tests (13)
 bash test/tapeback.test.sh      # /tapeback integration tests (19)
-bash test/squash.test.sh        # /squash integration tests (18)
+bash test/squash.test.sh        # /squash integration tests (22)
 node --test test/commands.test.js  # JS unit tests (17)
 ```
 
-All 67 tests must pass before opening a PR.
+All 71 tests must pass before opening a PR.
 
 ---
 

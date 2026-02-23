@@ -119,15 +119,18 @@ const repoRoot = execSync('git rev-parse --show-toplevel').toString().trim();
 let recTag = '[REC]';
 try { recTag = JSON.parse(fs.readFileSync(path.join(repoRoot, '.tapeback.json'), 'utf8')).recTag || '[REC]'; } catch {}
 const lines = fs.readFileSync(f, 'utf8').split('\n');
-let firstRec = true;
-const out = lines.map(l => {
+const recLines = [], nonRecLines = [], otherLines = [];
+for (const l of lines) {
   const m = l.match(/^pick\s+([0-9a-f]+)/);
-  if (!m) return l;
+  if (!m) { otherLines.push(l); continue; }
   const subject = execSync('git log -1 --format=%s ' + m[1]).toString().trim();
-  if (!subject.includes(recTag)) return l;
-  if (firstRec) { firstRec = false; return l.replace(/^pick/, 'reword'); }
-  return l.replace(/^pick/, 'fixup');
-});
+  (subject.includes(recTag) ? recLines : nonRecLines).push(l);
+}
+const out = [
+  ...recLines.map((l, i) => l.replace(/^pick/, i === 0 ? 'reword' : 'fixup')),
+  ...nonRecLines,
+  ...otherLines,
+];
 fs.writeFileSync(f, out.join('\n'));
 EOF
 ```
@@ -139,7 +142,9 @@ GIT_EDITOR="cp /tmp/tapeback_squash_msg.txt" \
 git rebase -i <BASE_REF>
 ```
 
-The sequence editor marks the oldest `[REC]` commit as `reword` (so git applies the user's message to it) and all subsequent `[REC]` commits as `fixup` (squashed into it, messages discarded). Non-`[REC]` commits remain as `pick` and are replayed unchanged.
+The sequence editor groups all `[REC]` commits together at the top of the rebase todo (oldest first), marking the first as `reword` (git applies the user's message) and the rest as `fixup` (squashed into it, messages discarded). All non-`[REC]` commits follow as `pick` and are replayed unchanged on top of the squashed result.
+
+This handles interleaved commits correctly: even if the user made manual commits between recordings, all `[REC]` changes land in a single commit and manual commits survive untouched.
 
 **d. Clean up:**
 ```bash

@@ -44,7 +44,7 @@ bash test/squash.test.sh
 node --test test/commands.test.js
 ```
 
-All tests must pass before committing. There are currently 67 tests.
+All tests must pass before committing. There are currently 71 tests.
 
 ---
 
