@@ -113,15 +113,36 @@ nav {
   margin-bottom: 24px;
   font-size: 72px;
   line-height: 1;
-  animation: reel-spin 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
-  transform-origin: center;
   user-select: none;
+  animation: film-advance 1.8s ease-in-out infinite;
 }
 
-@keyframes reel-spin {
-  0%   { transform: rotate(0deg);   }
-  70%  { transform: rotate(360deg); }
-  100% { transform: rotate(360deg); }
+/*
+  Simulates a film frame advancing through a camera gate:
+  1. Hold (shutter open, frame exposed)
+  2. Shutter closes — goes dark
+  3. Pulldown claw yanks film down, slight overshoot bounce
+  4. Shutter opens — new frame flashes on
+  5. Settle and hold
+*/
+@keyframes film-advance {
+  /* — hold frame — */
+  0%,  28% { transform: translateY(0);    filter: brightness(1);    }
+
+  /* — shutter blade sweeps shut — */
+  33%      { transform: translateY(0);    filter: brightness(0.05); }
+
+  /* — pulldown claw fires: yank → overshoot → settle — */
+  38%      { transform: translateY(-7px); filter: brightness(0.05); }
+  42%      { transform: translateY(3px);  filter: brightness(0.05); }
+  46%      { transform: translateY(0);    filter: brightness(0.05); }
+
+  /* — shutter opens, new frame floods the gate — */
+  50%      { transform: translateY(0);    filter: brightness(1.7);  }
+  56%      { transform: translateY(0);    filter: brightness(1);    }
+
+  /* — hold new frame — */
+  100%     { transform: translateY(0);    filter: brightness(1);    }
 }
 
 #hero h1 {
