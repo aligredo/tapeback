@@ -18,8 +18,41 @@ DEFAULT_IGNORE='["*.env","*.log",".tapeback.json"]'
 # ─── Safety wrapper — ensure we always exit 0 ─────────────────────────────────
 
 tapeback_main() {
+  # ─── Read hook input (Claude Code sends JSON via stdin) ─────────────────────
+
+  local stdin_data=""
+  if [[ ! -t 0 ]]; then
+    stdin_data="$(cat 2>/dev/null)" || stdin_data=""
+  fi
+
+  local tool_name="" hook_session_id="unknown" input_content=""
+
+  if command -v node > /dev/null 2>&1 && [[ -n "$stdin_data" ]]; then
+    local _idx=0
+    while IFS= read -r _line; do
+      case $_idx in
+        0) tool_name="$_line" ;;
+        1) hook_session_id="$_line" ;;
+        2) input_content="$_line" ;;
+      esac
+      (( _idx++ )) || true
+    done < <(printf '%s' "$stdin_data" | node -e "
+      const c = [];
+      process.stdin.on('data', d => c.push(d));
+      process.stdin.on('end', () => {
+        try {
+          const o = JSON.parse(c.join(''));
+          const ti = o.tool_input || {};
+          const s = v => String(v || '').replace(/[\n\r]/g, ' ');
+          console.log(s(o.tool_name));
+          console.log(s(o.session_id));
+          console.log(s(ti.content || ti.new_string || '').slice(0, 100));
+        } catch(e) { console.log(''); console.log('unknown'); console.log(''); }
+      });
+    " 2>/dev/null || { echo; echo "unknown"; echo; })
+  fi
+
   # Only act on file-modifying tools
-  local tool_name="${CLAUDE_TOOL_NAME:-}"
   case "$tool_name" in
     Write|Edit|MultiEdit) ;;
     *) exit 0 ;;
@@ -120,20 +153,17 @@ tapeback_main() {
   fi
 
   # ─── Gather commit metadata ──────────────────────────────────────────────────
-  # SECURITY: CLAUDE_TOOL_INPUT_CONTENT and CLAUDE_SESSION_ID are stripped of
-  # control characters before use to prevent commit message corruption.
 
   local timestamp
   timestamp="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
 
-  # Strip non-printable control characters (allow regular whitespace)
   local session_id
-  session_id="$(printf '%s' "${CLAUDE_SESSION_ID:-unknown}" \
+  session_id="$(printf '%s' "${hook_session_id:-unknown}" \
     | tr -cd '[:print:]' | head -c 128)"
   [[ -z "$session_id" ]] && session_id="unknown"
 
   local agent_message
-  agent_message="$(printf '%s' "${CLAUDE_TOOL_INPUT_CONTENT:-}" \
+  agent_message="$(printf '%s' "$input_content" \
     | tr -cd '[:print:] \t' | head -c 100)"
 
   # Changed files with stat
@@ -151,9 +181,15 @@ tapeback_main() {
   # ─── Generate headline via src/generate-headline.js ───────────────────────
 
   local headline=""
-  local script_dir
-  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-  local generator="$script_dir/src/generate-headline.js"
+  local script_dir generator
+  # Installed: .claude/hooks/ → .claude/src/
+  script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+  generator="$script_dir/src/generate-headline.js"
+  # Source tree fallback: plugin/hooks/ → repo root src/
+  if [[ ! -f "$generator" ]]; then
+    script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+    generator="$script_dir/src/generate-headline.js"
+  fi
 
   if command -v node > /dev/null 2>&1 && [[ -f "$generator" ]]; then
     # Pass file names as individual arguments (safe — no word splitting issues)

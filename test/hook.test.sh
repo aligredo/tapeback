@@ -30,12 +30,12 @@ cleanup() {
 run_hook() {
   local repo="$1"
   local tool="${2:-Write}"
+  local content="${3:-test agent message}"
+  local session="${4:-test-session-123}"
   (
     cd "$repo"
-    export CLAUDE_TOOL_NAME="$tool"
-    export CLAUDE_TOOL_INPUT_CONTENT="${3:-test agent message}"
-    export CLAUDE_SESSION_ID="test-session-123"
-    bash "$HOOK"
+    printf '{"tool_name":"%s","tool_input":{"content":"%s"},"session_id":"%s"}' \
+      "$tool" "$content" "$session" | bash "$HOOK"
   )
 }
 
@@ -107,10 +107,8 @@ T3="$(make_repo)"
 echo "hello" > "$T3/src.txt"
 (
   cd "$T3"
-  export CLAUDE_TOOL_NAME="Write"
-  export CLAUDE_TOOL_INPUT_CONTENT="add greeting file"
-  export CLAUDE_SESSION_ID="sess-abc"
-  bash "$HOOK"
+  printf '{"tool_name":"Write","tool_input":{"content":"add greeting file"},"session_id":"sess-abc"}' \
+    | bash "$HOOK"
 )
 assert_commit_count "$T3" 2 "creates a commit when files changed"
 assert_last_commit_contains "$T3" "\[REC\]" "commit subject contains [REC] tag"
@@ -123,10 +121,8 @@ T4="$(make_repo)"
 echo "edited" > "$T4/file.txt"
 (
   cd "$T4"
-  export CLAUDE_TOOL_NAME="Edit"
-  export CLAUDE_TOOL_INPUT_CONTENT="edit file"
-  export CLAUDE_SESSION_ID="unknown"
-  bash "$HOOK"
+  printf '{"tool_name":"Edit","tool_input":{"content":"edit file"},"session_id":"unknown"}' \
+    | bash "$HOOK"
 )
 assert_commit_count "$T4" 2 "creates a commit for Edit tool"
 assert_last_commit_contains "$T4" "\[REC\]" "Edit tool commit has [REC] tag"
@@ -138,10 +134,8 @@ echo "multi" > "$T5/a.txt"
 echo "edit" > "$T5/b.txt"
 (
   cd "$T5"
-  export CLAUDE_TOOL_NAME="MultiEdit"
-  export CLAUDE_TOOL_INPUT_CONTENT="multi-edit two files"
-  export CLAUDE_SESSION_ID="unknown"
-  bash "$HOOK"
+  printf '{"tool_name":"MultiEdit","tool_input":{"content":"multi-edit two files"},"session_id":"unknown"}' \
+    | bash "$HOOK"
 )
 assert_commit_count "$T5" 2 "creates a commit for MultiEdit tool"
 cleanup "$T5"
@@ -152,10 +146,8 @@ echo '{"recTag":"[SNAP]","messageStyle":"deterministic","sessionTag":true,"ignor
 echo "snap" > "$T6/snap.txt"
 (
   cd "$T6"
-  export CLAUDE_TOOL_NAME="Write"
-  export CLAUDE_TOOL_INPUT_CONTENT="custom tag test"
-  export CLAUDE_SESSION_ID="unknown"
-  bash "$HOOK"
+  printf '{"tool_name":"Write","tool_input":{"content":"custom tag test"},"session_id":"unknown"}' \
+    | bash "$HOOK"
 )
 assert_last_commit_contains "$T6" "\[SNAP\]" "respects custom recTag from .tapeback.json"
 cleanup "$T6"
@@ -164,8 +156,7 @@ cleanup "$T6"
 T7="$(mktemp -d)"
 (
   cd "$T7"
-  export CLAUDE_TOOL_NAME="Write"
-  bash "$HOOK"
+  printf '{"tool_name":"Write","tool_input":{},"session_id":"unknown"}' | bash "$HOOK"
 ) && echo "  ✓ exits 0 outside git repo" && (( PASS++ )) || true
 cleanup "$T7"
 
