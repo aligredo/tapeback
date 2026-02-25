@@ -114,21 +114,13 @@ nav {
   font-size: 72px;
   line-height: 1;
   user-select: none;
-  animation: tapeback 2.8s linear infinite;
+  animation: tapeback 2s linear infinite alternate;
 }
 
-/*
-  Slides right over 2 s (the "tape rolling forward"),
-  then snaps instantly back to the start — tapeback.
-*/
+/* Rolls left-to-right, then right-to-left at the same pace — tapeback. */
 @keyframes tapeback {
-  0%      { transform: translateX(0);    }
-  /* 2 s of steady rightward travel (71% of 2.8 s ≈ 2 s) */
-  71%     { transform: translateX(88px); }
-  /* instant snap back */
-  71.01%  { transform: translateX(0);    }
-  /* brief pause before the next roll */
-  100%    { transform: translateX(0);    }
+  from { transform: translateX(-60px); }
+  to   { transform: translateX(60px);  }
 }
 
 #hero h1 {
