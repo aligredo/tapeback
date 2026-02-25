@@ -72,7 +72,6 @@ nav {
   text-decoration: none;
 }
 
-.nav-logo svg { flex-shrink: 0; }
 
 .nav-links {
   display: flex;
@@ -112,13 +111,17 @@ nav {
 .hero-reel {
   display: inline-block;
   margin-bottom: 24px;
-  animation: spin 12s linear infinite;
+  font-size: 72px;
+  line-height: 1;
+  animation: reel-spin 3s cubic-bezier(0.4, 0, 0.6, 1) infinite;
   transform-origin: center;
+  user-select: none;
 }
 
-@keyframes spin {
-  from { transform: rotate(0deg); }
-  to   { transform: rotate(360deg); }
+@keyframes reel-spin {
+  0%   { transform: rotate(0deg);   }
+  70%  { transform: rotate(360deg); }
+  100% { transform: rotate(360deg); }
 }
 
 #hero h1 {
@@ -354,15 +357,7 @@ footer a:hover { color: var(--text); }
 <!-- ─── Nav ──────────────────────────────────────────────────────────────────── -->
 <nav>
   <a class="nav-logo" href="#">
-    <svg width="22" height="22" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-      <circle cx="32" cy="32" r="29" stroke="#58a6ff" stroke-width="2.5"/>
-      <circle cx="32" cy="32" r="10" stroke="#58a6ff" stroke-width="2"/>
-      <circle cx="32" cy="32" r="4" fill="#58a6ff"/>
-      <line x1="32" y1="22" x2="32" y2="3"  stroke="#58a6ff" stroke-width="2" stroke-linecap="round"/>
-      <line x1="32" y1="42" x2="32" y2="61" stroke="#58a6ff" stroke-width="2" stroke-linecap="round"/>
-      <line x1="22" y1="32" x2="3"  y2="32" stroke="#58a6ff" stroke-width="2" stroke-linecap="round"/>
-      <line x1="42" y1="32" x2="61" y2="32" stroke="#58a6ff" stroke-width="2" stroke-linecap="round"/>
-    </svg>
+    <span aria-hidden="true">🎞️</span>
     tapeback
   </a>
   <div class="nav-links">
@@ -387,18 +382,7 @@ footer a:hover { color: var(--text); }
 
 <!-- ─── Hero ─────────────────────────────────────────────────────────────────── -->
 <section id="hero" style="border-top: none;">
-  <div class="hero-reel" aria-hidden="true">
-    <svg width="56" height="56" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <circle cx="32" cy="32" r="29" stroke="#58a6ff" stroke-width="2.5" stroke-dasharray="6 3"/>
-      <circle cx="32" cy="32" r="14" stroke="#30363d" stroke-width="8"/>
-      <circle cx="32" cy="32" r="10" stroke="#58a6ff" stroke-width="2"/>
-      <circle cx="32" cy="32" r="4" fill="#58a6ff"/>
-      <line x1="32" y1="22" x2="32" y2="3"  stroke="#58a6ff" stroke-width="2" stroke-linecap="round"/>
-      <line x1="32" y1="42" x2="32" y2="61" stroke="#58a6ff" stroke-width="2" stroke-linecap="round"/>
-      <line x1="22" y1="32" x2="3"  y2="32" stroke="#58a6ff" stroke-width="2" stroke-linecap="round"/>
-      <line x1="42" y1="32" x2="61" y2="32" stroke="#58a6ff" stroke-width="2" stroke-linecap="round"/>
-    </svg>
-  </div>
+  <div class="hero-reel" aria-hidden="true">🎞️</div>
 
   <h1>The <span>rewind button</span><br>for Claude Code</h1>
 
