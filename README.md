@@ -2,6 +2,8 @@
 
 > *Like rewinding a tape — tapeback automatically records every Claude Code agent action that changes your codebase, so you can rewind to any moment in your session.*
 
+[![npm version](https://img.shields.io/npm/v/tapeback?style=flat&color=cb3837)](https://www.npmjs.com/package/tapeback)
+[![npm downloads](https://img.shields.io/npm/dm/tapeback?style=flat&color=cb3837)](https://www.npmjs.com/package/tapeback)
 [![Buy Me A Coffee](https://img.shields.io/badge/Buy%20Me%20A%20Coffee-aligredo-FFDD00?style=flat&logo=buy-me-a-coffee&logoColor=black)](https://buymeacoffee.com/aligredo)
 
 ---
@@ -27,6 +29,31 @@ npx tapeback init --global
 ```
 
 That's it. No global install required. tapeback wires itself into Claude Code's hook system and starts recording immediately.
+
+## Uninstall
+
+**From the current project:**
+
+```bash
+# Remove hook, commands, and scripts
+rm -f  .claude/hooks/post-tool-use.sh
+rm -f  .claude/commands/tapeback.md .claude/commands/squash.md .claude/commands/reel.md
+rm -f  .claude/src/generate-headline.js .claude/src/commit-message.js \
+       .claude/src/git-graph.js .claude/src/generate-reel.js
+```
+
+Then open `.claude/settings.json` and remove the `PostToolUse` hook entry for tapeback.
+
+**Global uninstall (`~/.claude/`):**
+
+```bash
+rm -f  ~/.claude/hooks/post-tool-use.sh
+rm -f  ~/.claude/commands/tapeback.md ~/.claude/commands/squash.md ~/.claude/commands/reel.md
+rm -f  ~/.claude/src/generate-headline.js ~/.claude/src/commit-message.js \
+       ~/.claude/src/git-graph.js ~/.claude/src/generate-reel.js
+```
+
+Then remove the hook entry from `~/.claude/settings.json`.
 
 ---
 
