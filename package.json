@@ -1,6 +1,6 @@
 {
   "name": "tapeback",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Automatic session recording and rollback for Claude Code agents",
   "keywords": [
     "claude",
